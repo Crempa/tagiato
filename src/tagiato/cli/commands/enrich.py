@@ -61,6 +61,12 @@ def enrich(
         "-v",
         help="Podrobný výpis volání nástrojů s parametry",
     ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        "-r",
+        help="Resetovat průběh a začít zpracování od začátku",
+    ),
 ) -> None:
     """Zpracuje fotky - přidá GPS souřadnice a AI popisky.
 
@@ -69,6 +75,7 @@ def enrich(
     """
     start_time = time.time()
 
+    # Vytvořit config pro přístup k cestám
     config = Config(
         photos_dir=photos_dir,
         timeline_path=timeline,
@@ -77,6 +84,11 @@ def enrich(
         thumbnail_size=thumbnail_size,
         verbose=verbose,
     )
+
+    # Reset stavu pokud je požadován
+    if reset and config.state_file.exists():
+        config.state_file.unlink()
+        console.print("[yellow]Stav resetován - začínám od začátku[/yellow]")
 
     def progress_callback(current: int, total: int, filename: str, status: str) -> None:
         console.print(f"[{current}/{total}] {filename} - {status}")
