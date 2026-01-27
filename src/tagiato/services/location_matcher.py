@@ -4,6 +4,7 @@ import bisect
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
+from tagiato.core.logger import log_call, log_result, log_info
 from tagiato.models.location import Location, GPSCoordinates
 from tagiato.models.timeline import TimelinePoint
 
@@ -31,7 +32,10 @@ class LocationMatcher:
         Returns:
             Location s GPS a confidence, nebo None pokud není v toleranci
         """
+        log_call("LocationMatcher", "match", photo_time=photo_time.isoformat())
+
         if not self.points:
+            log_info("no timeline points")
             return None
 
         # Binary search pro nalezení nejbližších bodů
@@ -41,16 +45,23 @@ class LocationMatcher:
         before, after = self._get_surrounding_points(idx, photo_time)
 
         if before is None and after is None:
+            log_info("no points within tolerance")
             return None
 
         # Pokud máme jen jeden bod
         if before is None:
-            return self._create_location_from_single(after, photo_time)
+            result = self._create_location_from_single(after, photo_time)
+            log_result("LocationMatcher", "match", f"single point, confidence={result.confidence:.2f}" if result else None)
+            return result
         if after is None:
-            return self._create_location_from_single(before, photo_time)
+            result = self._create_location_from_single(before, photo_time)
+            log_result("LocationMatcher", "match", f"single point, confidence={result.confidence:.2f}" if result else None)
+            return result
 
         # Interpolovat mezi dvěma body
-        return self._interpolate(before, after, photo_time)
+        result = self._interpolate(before, after, photo_time)
+        log_result("LocationMatcher", "match", f"interpolated, confidence={result.confidence:.2f}")
+        return result
 
     def _get_surrounding_points(
         self, idx: int, photo_time: datetime

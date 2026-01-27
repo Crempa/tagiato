@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from tagiato.core.exceptions import ClaudeNotFoundError
+from tagiato.core.logger import log_call, log_result, log_info
 from tagiato.models.location import GPSCoordinates
 
 
@@ -74,6 +75,14 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
         Returns:
             DescriptionResult s popiskem a případně upřesněnými GPS
         """
+        log_call(
+            "ClaudeDescriber",
+            "describe",
+            thumbnail=thumbnail_path.name,
+            place=place_name,
+            model=self.model,
+        )
+
         prompt = self.PROMPT_TEMPLATE.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             place_name=place_name or "neznámé",
@@ -81,6 +90,8 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
             lng=f"{coords.longitude:.6f}" if coords else "neznámé",
             timestamp=timestamp or "neznámé",
         )
+
+        log_info(f"claude --model {self.model} --print <prompt>")
 
         try:
             result = subprocess.run(
@@ -91,13 +102,22 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
             )
 
             if result.returncode != 0:
+                log_info(f"claude exited with code {result.returncode}")
                 return DescriptionResult(description="")
 
-            return self._parse_response(result.stdout)
+            parsed = self._parse_response(result.stdout)
+            log_result(
+                "ClaudeDescriber",
+                "describe",
+                f"description={len(parsed.description)} chars, refined_gps={parsed.refined_gps is not None}",
+            )
+            return parsed
 
         except subprocess.TimeoutExpired:
+            log_info("claude timeout after 120s")
             return DescriptionResult(description="")
-        except Exception:
+        except Exception as e:
+            log_info(f"claude error: {e}")
             return DescriptionResult(description="")
 
     def _parse_response(self, response: str) -> DescriptionResult:
@@ -146,8 +166,17 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
         Returns:
             Souhrn cesty
         """
+        log_call(
+            "ClaudeDescriber",
+            "generate_trip_summary",
+            photos=len(photos_info),
+            places=len(places),
+        )
+
         start_date, end_date = date_range
         places_str = ", ".join(places[:10])  # Max 10 míst
+
+        log_info(f"claude --model {self.model} --print <summary_prompt>")
 
         prompt = f"""Na základě těchto informací napiš krátký (2-3 věty) poetický souhrn cesty v češtině:
 

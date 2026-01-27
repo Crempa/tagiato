@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+from tagiato.core.logger import log_call, log_result
 from tagiato.models.location import GPSCoordinates
 
 
@@ -49,6 +50,14 @@ class XmpWriter:
         Returns:
             Cesta k vytvořenému XMP souboru
         """
+        log_call(
+            "XmpWriter",
+            "write",
+            file=photo_path.name,
+            gps=str(gps) if gps else None,
+            description=f"{len(description)} chars" if description else None,
+        )
+
         xmp_path = photo_path.with_suffix(".xmp")
 
         # Připravit sekce
@@ -80,6 +89,7 @@ class XmpWriter:
         with open(xmp_path, "w", encoding="utf-8") as f:
             f.write(xmp_content)
 
+        log_result("XmpWriter", "write", xmp_path.name)
         return xmp_path
 
     def _format_gps_for_xmp(self, decimal: float, pos_ref: str, neg_ref: str) -> str:

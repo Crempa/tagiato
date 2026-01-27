@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Callable
 
 from tagiato.core.config import Config
+from tagiato.core.logger import set_verbose
 from tagiato.models.photo import Photo
 from tagiato.models.location import GPSCoordinates
 from tagiato.services.photo_scanner import PhotoScanner
@@ -33,6 +34,9 @@ class Pipeline:
         """
         self.config = config
         self.progress_callback = progress_callback
+
+        # Nastavit verbose mode
+        set_verbose(config.verbose)
 
         # Inicializovat služby
         self.scanner = PhotoScanner()

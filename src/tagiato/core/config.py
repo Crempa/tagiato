@@ -24,6 +24,9 @@ class Config:
     # Velikost náhledu (kratší strana v px)
     thumbnail_size: int = 1024
 
+    # Verbose mode
+    verbose: bool = False
+
     # Pracovní složka
     @property
     def work_dir(self) -> Path:

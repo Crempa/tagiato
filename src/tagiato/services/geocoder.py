@@ -7,6 +7,7 @@ from typing import Optional
 
 import requests
 
+from tagiato.core.logger import log_call, log_result, log_info
 from tagiato.models.location import GPSCoordinates
 
 
@@ -62,10 +63,14 @@ class Geocoder:
         Returns:
             Název místa nebo None
         """
+        log_call("Geocoder", "geocode", lat=coords.latitude, lng=coords.longitude)
+
         # Zkusit cache
         cache_key = self._get_cache_key(coords)
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            result = self._cache[cache_key]
+            log_info(f"cache hit: {result}")
+            return result
 
         # Rate limiting
         self._wait_for_rate_limit()
@@ -92,9 +97,11 @@ class Geocoder:
             self._cache[cache_key] = place_name
             self._save_cache()
 
+            log_result("Geocoder", "geocode", place_name)
             return place_name
 
-        except requests.RequestException:
+        except requests.RequestException as e:
+            log_info(f"request failed: {e}")
             # Při chybě vrátit None, ale neuložit do cache
             return None
 

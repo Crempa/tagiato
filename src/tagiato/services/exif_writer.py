@@ -6,6 +6,7 @@ from typing import Optional
 import piexif
 
 from tagiato.core.exceptions import ExifError
+from tagiato.core.logger import log_call, log_info
 from tagiato.models.location import GPSCoordinates
 
 
@@ -30,7 +31,17 @@ class ExifWriter:
         Raises:
             ExifError: Pokud zápis selže
         """
+        log_call(
+            "ExifWriter",
+            "write",
+            file=photo_path.name,
+            gps=str(gps) if gps else None,
+            description=f"{len(description)} chars" if description else None,
+            skip_existing_gps=skip_existing_gps,
+        )
+
         if gps is None and description is None:
+            log_info("nothing to write")
             return
 
         try:

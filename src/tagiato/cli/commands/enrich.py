@@ -55,6 +55,12 @@ def enrich(
         min=256,
         max=2048,
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Podrobný výpis volání nástrojů s parametry",
+    ),
 ) -> None:
     """Zpracuje fotky - přidá GPS souřadnice a AI popisky.
 
@@ -69,6 +75,7 @@ def enrich(
         max_time_gap=max_time_gap,
         model=model,
         thumbnail_size=thumbnail_size,
+        verbose=verbose,
     )
 
     def progress_callback(current: int, total: int, filename: str, status: str) -> None:

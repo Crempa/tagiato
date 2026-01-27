@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from tagiato.core.exceptions import TimelineParseError
+from tagiato.core.logger import log_call, log_result
 from tagiato.models.location import GPSCoordinates
 from tagiato.models.timeline import TimelinePoint
 
@@ -25,6 +26,8 @@ class TimelineLoader:
         Raises:
             TimelineParseError: Pokud nelze načíst nebo parsovat soubor
         """
+        log_call("TimelineLoader", "load", path=str(path))
+
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -48,6 +51,7 @@ class TimelineLoader:
         # Seřadit podle času
         points.sort()
 
+        log_result("TimelineLoader", "load", f"{len(points)} points")
         return points
 
     def _extract_points_from_record(self, record: dict) -> List[TimelinePoint]:
