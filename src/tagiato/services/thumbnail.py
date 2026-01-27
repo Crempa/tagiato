@@ -1,5 +1,6 @@
 """Generování náhledů fotek."""
 
+import warnings
 from pathlib import Path
 
 from PIL import Image, ExifTags
@@ -30,7 +31,12 @@ class ThumbnailGenerator:
 
         thumbnail_path = self.output_dir / f"{photo_path.stem}_thumb.jpg"
 
-        with Image.open(photo_path) as img:
+        # Potlačit warningy o corrupt EXIF datech
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Corrupt EXIF data")
+            img = Image.open(photo_path)
+
+        with img:
             # Aplikovat EXIF orientaci
             img = self._apply_exif_orientation(img)
 
