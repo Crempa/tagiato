@@ -91,11 +91,11 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
             timestamp=timestamp or "neznámé",
         )
 
-        log_info(f"claude --model {self.model} --print <prompt>")
+        log_info(f"claude --dangerously-skip-permissions --model {self.model} --print <prompt>")
 
         try:
             result = subprocess.run(
-                ["claude", "--model", self.model, "--print", prompt],
+                ["claude", "--dangerously-skip-permissions", "--model", self.model, "--print", prompt],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -176,7 +176,7 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
         start_date, end_date = date_range
         places_str = ", ".join(places[:10])  # Max 10 míst
 
-        log_info(f"claude --model {self.model} --print <summary_prompt>")
+        log_info(f"claude --dangerously-skip-permissions --model {self.model} --print <summary_prompt>")
 
         prompt = f"""Na základě těchto informací napiš krátký (2-3 věty) poetický souhrn cesty v češtině:
 
@@ -188,7 +188,7 @@ Souhrn by měl být osobní a evokativní, ne jen výčet faktů. Vrať POUZE te
 
         try:
             result = subprocess.run(
-                ["claude", "--model", self.model, "--print", prompt],
+                ["claude", "--dangerously-skip-permissions", "--model", self.model, "--print", prompt],
                 capture_output=True,
                 text=True,
                 timeout=60,
