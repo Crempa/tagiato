@@ -27,6 +27,9 @@ class Config:
     # Verbose mode
     verbose: bool = False
 
+    # Generovat XMP sidecar soubory
+    xmp: bool = False
+
     # Pracovní složka
     @property
     def work_dir(self) -> Path:

@@ -67,6 +67,11 @@ def enrich(
         "-r",
         help="Resetovat průběh a začít zpracování od začátku",
     ),
+    xmp: bool = typer.Option(
+        False,
+        "--xmp",
+        help="Generovat XMP sidecar soubory",
+    ),
 ) -> None:
     """Zpracuje fotky - přidá GPS souřadnice a AI popisky.
 
@@ -83,6 +88,7 @@ def enrich(
         model=model,
         thumbnail_size=thumbnail_size,
         verbose=verbose,
+        xmp=xmp,
     )
 
     # Reset stavu pokud je požadován

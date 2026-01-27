@@ -83,8 +83,11 @@ class Pipeline:
             self._process_photo(photo, idx, len(photos))
             processed_photos.append(photo)
 
-        # Vygenerovat souhrn a MD
-        self._generate_outputs(processed_photos)
+            # Průběžně aktualizovat MD soubor
+            self._write_descriptions_md_incremental(processed_photos)
+
+        # Vygenerovat finální souhrn
+        self._generate_final_summary(processed_photos)
 
         # Dokončit
         self.state_manager.mark_completed()
@@ -127,7 +130,8 @@ class Pipeline:
                 photo.refined_gps = result.refined_gps
 
             # Zápis EXIF
-            self._report_progress(current, total, photo.filename, "Writing EXIF + XMP...")
+            status = "Writing EXIF + XMP..." if self.config.xmp else "Writing EXIF..."
+            self._report_progress(current, total, photo.filename, status)
             final_gps = photo.final_gps
 
             self.exif_writer.write(
@@ -137,12 +141,13 @@ class Pipeline:
                 skip_existing_gps=True,
             )
 
-            # Zápis XMP
-            self.xmp_writer.write(
-                photo_path=photo.path,
-                gps=final_gps,
-                description=photo.description if photo.description else None,
-            )
+            # Zápis XMP (jen pokud je požadován)
+            if self.config.xmp:
+                self.xmp_writer.write(
+                    photo_path=photo.path,
+                    gps=final_gps,
+                    description=photo.description if photo.description else None,
+                )
 
             photo.processed = True
 
@@ -163,19 +168,13 @@ class Pipeline:
                 error=str(e),
             )
 
-    def _generate_outputs(self, photos: List[Photo]) -> None:
-        """Vygeneruje výstupní soubory."""
-        # Seřadit fotky podle data
+    def _generate_final_summary(self, photos: List[Photo]) -> None:
+        """Vygeneruje finální souhrn a aktualizuje MD."""
         photos_with_time = [p for p in photos if p.timestamp]
-        photos_with_time.sort(key=lambda p: p.timestamp)
+        if not photos_with_time:
+            return
 
-        # Seskupit podle dne
-        days = {}
-        for photo in photos_with_time:
-            day_key = photo.timestamp.strftime("%Y-%m-%d")
-            if day_key not in days:
-                days[day_key] = []
-            days[day_key].append(photo)
+        photos_with_time.sort(key=lambda p: p.timestamp)
 
         # Získat unikátní místa
         places = []
@@ -184,42 +183,52 @@ class Pipeline:
                 places.append(photo.place_name)
 
         # Vygenerovat souhrn
-        summary = ""
-        if photos_with_time:
-            start_date = photos_with_time[0].timestamp.strftime("%d. %m. %Y")
-            end_date = photos_with_time[-1].timestamp.strftime("%d. %m. %Y")
+        start_date = photos_with_time[0].timestamp.strftime("%d. %m. %Y")
+        end_date = photos_with_time[-1].timestamp.strftime("%d. %m. %Y")
 
-            self._report_progress(
-                len(photos), len(photos), "", "Generating trip summary..."
-            )
-            summary = self.describer.generate_trip_summary(
-                photos_info=[p.filename for p in photos_with_time],
-                places=places[:10],
-                date_range=(start_date, end_date),
-            )
+        self._report_progress(
+            len(photos), len(photos), "", "Generating trip summary..."
+        )
+        summary = self.describer.generate_trip_summary(
+            photos_info=[p.filename for p in photos_with_time],
+            places=places[:10],
+            date_range=(start_date, end_date),
+        )
 
-        # Zapsat MD
-        self._write_descriptions_md(photos, days, places, summary)
+        # Finální zápis MD se souhrnem
+        self._write_descriptions_md_full(photos, summary)
 
-    def _write_descriptions_md(
-        self,
-        photos: List[Photo],
-        days: dict,
-        places: List[str],
-        summary: str,
-    ) -> None:
+    def _write_descriptions_md_incremental(self, photos: List[Photo]) -> None:
+        """Průběžně zapisuje descriptions.md bez souhrnu."""
+        self._write_descriptions_md_full(photos, summary=None)
+
+    def _write_descriptions_md_full(self, photos: List[Photo], summary: Optional[str]) -> None:
         """Zapíše descriptions.md soubor."""
+        # Seřadit a seskupit fotky
+        photos_with_time = [p for p in photos if p.timestamp]
+        photos_with_time.sort(key=lambda p: p.timestamp)
+
+        days = {}
+        for photo in photos_with_time:
+            day_key = photo.timestamp.strftime("%Y-%m-%d")
+            if day_key not in days:
+                days[day_key] = []
+            days[day_key].append(photo)
+
+        places = []
+        for photo in photos_with_time:
+            if photo.place_name and photo.place_name not in places:
+                places.append(photo.place_name)
+
         lines = []
 
         # Hlavička
         lines.append("# Popisky fotek")
 
-        if photos:
-            photos_with_time = [p for p in photos if p.timestamp]
-            if photos_with_time:
-                start = min(p.timestamp for p in photos_with_time)
-                end = max(p.timestamp for p in photos_with_time)
-                lines.append(f"**Období**: {start.strftime('%d. %m.')} - {end.strftime('%d. %m. %Y')}")
+        if photos_with_time:
+            start = min(p.timestamp for p in photos_with_time)
+            end = max(p.timestamp for p in photos_with_time)
+            lines.append(f"**Období**: {start.strftime('%d. %m.')} - {end.strftime('%d. %m. %Y')}")
 
         if places:
             lines.append(f"**Místa**: {', '.join(places[:5])}")
