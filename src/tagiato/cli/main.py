@@ -7,6 +7,7 @@ from tagiato.cli.commands.enrich import enrich
 from tagiato.cli.commands.apply import apply
 from tagiato.cli.commands.export import export
 from tagiato.cli.commands.status import status
+from tagiato.cli.commands.reset import reset
 
 app = typer.Typer(
     name="tagiato",
@@ -41,6 +42,7 @@ app.command(name="enrich")(enrich)
 app.command(name="apply")(apply)
 app.command(name="export")(export)
 app.command(name="status")(status)
+app.command(name="reset")(reset)
 
 
 if __name__ == "__main__":

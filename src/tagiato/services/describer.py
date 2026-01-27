@@ -24,39 +24,41 @@ class DescriptionResult:
 class ClaudeDescriber:
     """Volá Claude CLI pro generování popisků fotek."""
 
-    PROMPT_TEMPLATE = """Jsi zkušený cestovatel a autor cestovního deníku s citem pro atmosféru a storytelling. Tvým úkolem je vytvořit popisek k přiložené fotografii pro sociální sítě a pokusit se zpřesnit lokalitu.
+    PROMPT_TEMPLATE = """Jsi stručný glosátor a cestovatel. Tvým úkolem je k fotce napsat "mikro-popisek" (caption).
 
     Vstupní data:
     - Cesta k náhledu: {thumbnail_path}
-    - Hrubá lokalita (dle historie polohy): {place_name}
-    - GPS (může být nepřesné): {lat}, {lng}
-    - Datum a čas pořízení: {timestamp}
+    - Místo (hrubý odhad): {place_name}
+    - GPS: {lat}, {lng}
+    - Datum: {timestamp}
 
-    INSTRUKCE PRO ANALÝZU A GPS:
-    1. Podívej se na fotografii. Pokud vidíš jasný orientační bod (katedrála, specifická ulice, vrchol hory, známá restaurace), který neodpovídá hrubé GPS, navrhni přesnější souřadnice.
-    2. Pokud je na fotce jen obecná krajina/interiér bez jasných bodů, ponech GPS beze změny (null).
+    INSTRUKCE PRO GPS:
+    - Pokud bezpečně poznáš konkrétní památku/budovu, oprav GPS na její střed. Jinak nech null.
 
     INSTRUKCE PRO TEXT (POPISEK):
-    Tvým cílem NENÍ popisovat, co je na obrázku ("vidím muže, jak jde"), ale zachytit ATMOSFÉRU a PŘÍBĚH momentu.
-    - Tón: Osobní, autentický, lehce emotivní nebo vtipný (podle obsahu).
-    - Jazyk: Přirozená čeština, žádné klišé.
-    - Lidé: Pokud jsou na fotce lidé, ber je jako přátele/rodinu autora. Nepopisuj je ("žena v červeném"), ale komentuj jejich akci nebo náladu ("Ranní káva s nejlepším výhledem", "Konečně jsme to vyšlápli").
-    - Kontext: Využij název místa ({place_name}) v textu, pokud dává smysl (např. "Tohle skryté zákoutí v [Místo] nás dostalo").
+    Musíš dodržet tento striktní formát:
+    1. První věta: Musí obsahovat PŘESNÝ NÁZEV MÍSTA nebo objektu (nominativ).
+    2. Druhá věta: Jedna technická/historická zajímavost nebo "hard fact" související s tím, co je na fotce.
+    3. NIC VÍC. Žádné úvody "Nacházíme se...", žádné pocity.
 
-    ZAKÁZANÉ FRÁZE (NEGATIVE CONSTRAINTS):
-    - "Na obrázku je...", "Fotografie zachycuje...", "Vidíme zde..."
-    - "Snímek byl pořízen dne..." (technické detaily vynech)
+    OMEZENÍ:
+    - Maximální délka: 2 krátké věty (cca 20-30 slov).
+    - Styl: Encyklopedický, telegrafický, přímočarý.
 
-    VÝSTUP:
-    Vrať POUZE validní JSON objekt bez formátování markdownem (žádné ```json na začátku):
+    PŘÍKLADY VÝSTUPU (Takhle to má vypadat):
+    - "Petronas Towers, Kuala Lumpur. Ve 41. patře je spojuje dvoupodlažní most, který není pevně ukotven kvůli výkyvům budov."
+    - "Chrám Sagrada Família. Gaudí na ní pracoval 43 let a věděl, že se dokončení nedožije."
+    - "Pláž Reynisfjara, Island. Černý písek vznikl erozí vulkanické horniny při kontaktu žhavé lávy s oceánem."
+
+    VÝSTUP JSON:
     {{
     "refined_gps": {{"lat": float, "lng": float}} nebo null,
-    "gps_confidence": "high" (jasný landmark) | "medium" (pravděpodobně) | "low" (nejisté/obecné),
-    "location_name_refined": "Přesnější název místa, pokud jsi ho poznal, jinak null",
-    "description": "Tvůj chytlavý text (2-4 věty)..."
+    "gps_confidence": "high" | "medium" | "low",
+    "location_name_refined": "Název místa",
+    "description": "Tvůj text..."
     }}
     """
-
+    
     def __init__(self, model: str = "sonnet"):
         """
         Args:

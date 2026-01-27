@@ -105,3 +105,80 @@ class ExifWriter:
         # Použijeme Unicode (UTF-8)
         user_comment = b"UNICODE\x00" + description.encode("utf-16-be")
         exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment
+
+    def clear(
+        self,
+        photo_path: Path,
+        clear_gps: bool = True,
+        clear_description: bool = True,
+    ) -> bool:
+        """Smaže GPS a/nebo popisek z EXIF.
+
+        Args:
+            photo_path: Cesta k JPEG souboru
+            clear_gps: Smazat GPS data
+            clear_description: Smazat popisek
+
+        Returns:
+            True pokud bylo něco smazáno
+
+        Raises:
+            ExifError: Pokud operace selže
+        """
+        log_call(
+            "ExifWriter",
+            "clear",
+            file=photo_path.name,
+            clear_gps=clear_gps,
+            clear_description=clear_description,
+        )
+
+        if not clear_gps and not clear_description:
+            return False
+
+        try:
+            # Načíst existující EXIF
+            try:
+                exif_dict = piexif.load(str(photo_path))
+            except Exception:
+                log_info("no EXIF to clear")
+                return False
+
+            changed = False
+
+            # Smazat GPS
+            if clear_gps and exif_dict.get("GPS"):
+                gps_tags_to_remove = [
+                    piexif.GPSIFD.GPSLatitude,
+                    piexif.GPSIFD.GPSLatitudeRef,
+                    piexif.GPSIFD.GPSLongitude,
+                    piexif.GPSIFD.GPSLongitudeRef,
+                    piexif.GPSIFD.GPSAltitude,
+                    piexif.GPSIFD.GPSAltitudeRef,
+                ]
+                for tag in gps_tags_to_remove:
+                    if tag in exif_dict["GPS"]:
+                        del exif_dict["GPS"][tag]
+                        changed = True
+
+            # Smazat popisek
+            if clear_description:
+                # ImageDescription v IFD0
+                if exif_dict.get("0th") and piexif.ImageIFD.ImageDescription in exif_dict["0th"]:
+                    del exif_dict["0th"][piexif.ImageIFD.ImageDescription]
+                    changed = True
+
+                # UserComment v Exif IFD
+                if exif_dict.get("Exif") and piexif.ExifIFD.UserComment in exif_dict["Exif"]:
+                    del exif_dict["Exif"][piexif.ExifIFD.UserComment]
+                    changed = True
+
+            if changed:
+                exif_bytes = piexif.dump(exif_dict)
+                piexif.insert(exif_bytes, str(photo_path))
+                log_info("EXIF cleared")
+
+            return changed
+
+        except Exception as e:
+            raise ExifError(f"Chyba při mazání EXIF z {photo_path}: {e}")
