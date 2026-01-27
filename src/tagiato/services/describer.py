@@ -24,25 +24,38 @@ class DescriptionResult:
 class ClaudeDescriber:
     """Volá Claude CLI pro generování popisků fotek."""
 
-    PROMPT_TEMPLATE = """Analyzuj obrázek na {thumbnail_path}.
+    PROMPT_TEMPLATE = """Jsi zkušený cestovatel a autor cestovního deníku s citem pro atmosféru a storytelling. Tvým úkolem je vytvořit popisek k přiložené fotografii pro sociální sítě a pokusit se zpřesnit lokalitu.
 
-Kontext:
-- Přibližné místo dle GPS historie: {place_name}
-- GPS (může být nepřesné): {lat}, {lng}
-- Datum: {timestamp}
+    Vstupní data:
+    - Cesta k náhledu: {thumbnail_path}
+    - Hrubá lokalita (dle historie polohy): {place_name}
+    - GPS (může být nepřesné): {lat}, {lng}
+    - Datum a čas pořízení: {timestamp}
 
-Úkoly:
-1. Podívej se na fotografii a zkus ověřit/upřesnit pozici podle významných objektů (budovy, památky, krajina). Pokud rozpoznáš konkrétní místo, uveď přesnější GPS souřadnice.
+    INSTRUKCE PRO ANALÝZU A GPS:
+    1. Podívej se na fotografii. Pokud vidíš jasný orientační bod (katedrála, specifická ulice, vrchol hory, známá restaurace), který neodpovídá hrubé GPS, navrhni přesnější souřadnice.
+    2. Pokud je na fotce jen obecná krajina/interiér bez jasných bodů, ponech GPS beze změny (null).
 
-2. Napiš 2-4 věty v češtině popisující fotografii:
-   - Styl dle charakteru: krajina poeticky, architektura fakticky, lidé osobně
-   - Popisek pro sociální sítě - chytlavý, zajímavý
-   - Může obsahovat emotikon, ale nepřehánět
-   - BEZ technických info (datum, fotoaparát)
-   - Pokud není jasné co je na fotce, vrať prázdný popisek
+    INSTRUKCE PRO TEXT (POPISEK):
+    Tvým cílem NENÍ popisovat, co je na obrázku ("vidím muže, jak jde"), ale zachytit ATMOSFÉRU a PŘÍBĚH momentu.
+    - Tón: Osobní, autentický, lehce emotivní nebo vtipný (podle obsahu).
+    - Jazyk: Přirozená čeština, žádné klišé.
+    - Lidé: Pokud jsou na fotce lidé, ber je jako přátele/rodinu autora. Nepopisuj je ("žena v červeném"), ale komentuj jejich akci nebo náladu ("Ranní káva s nejlepším výhledem", "Konečně jsme to vyšlápli").
+    - Kontext: Využij název místa ({place_name}) v textu, pokud dává smysl (např. "Tohle skryté zákoutí v [Místo] nás dostalo").
 
-Vrať POUZE JSON ve formátu (bez markdown code block):
-{{"refined_gps": {{"lat": 50.123, "lng": 15.456}} nebo null, "gps_confidence": "high/medium/low/unchanged", "description": "Popisek fotografie..." nebo ""}}"""
+    ZAKÁZANÉ FRÁZE (NEGATIVE CONSTRAINTS):
+    - "Na obrázku je...", "Fotografie zachycuje...", "Vidíme zde..."
+    - "Snímek byl pořízen dne..." (technické detaily vynech)
+
+    VÝSTUP:
+    Vrať POUZE validní JSON objekt bez formátování markdownem (žádné ```json na začátku):
+    {{
+    "refined_gps": {{"lat": float, "lng": float}} nebo null,
+    "gps_confidence": "high" (jasný landmark) | "medium" (pravděpodobně) | "low" (nejisté/obecné),
+    "location_name_refined": "Přesnější název místa, pokud jsi ho poznal, jinak null",
+    "description": "Tvůj chytlavý text (2-4 věty)..."
+    }}
+    """
 
     def __init__(self, model: str = "sonnet"):
         """
@@ -123,12 +136,35 @@ Vrať POUZE JSON ve formátu (bez markdown code block):
     def _parse_response(self, response: str) -> DescriptionResult:
         """Parsuje JSON odpověď od Claude."""
         try:
-            # Očistit odpověď od případných markdown bloků
+            # Očistit odpověď od případných markdown bloků a textu okolo JSON
             response = response.strip()
-            if response.startswith("```"):
-                lines = response.split("\n")
-                # Odstranit první a poslední řádek (```json a ```)
-                response = "\n".join(lines[1:-1])
+
+            # Najít JSON blok v markdown (```json ... ```)
+            if "```json" in response:
+                start = response.find("```json") + 7
+                end = response.find("```", start)
+                if end > start:
+                    response = response[start:end].strip()
+            elif "```" in response:
+                # Obecný code block
+                start = response.find("```") + 3
+                # Přeskočit případný jazyk na prvním řádku
+                if response[start:start+1] == "\n":
+                    start += 1
+                else:
+                    newline = response.find("\n", start)
+                    if newline > start:
+                        start = newline + 1
+                end = response.find("```", start)
+                if end > start:
+                    response = response[start:end].strip()
+
+            # Pokud stále není JSON, zkusit najít { ... }
+            if not response.startswith("{"):
+                json_start = response.find("{")
+                json_end = response.rfind("}") + 1
+                if json_start >= 0 and json_end > json_start:
+                    response = response[json_start:json_end]
 
             data = json.loads(response)
 
