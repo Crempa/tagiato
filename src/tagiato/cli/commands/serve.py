@@ -33,7 +33,7 @@ def serve(
         "sonnet",
         "--model",
         "-m",
-        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini, gpt-4o pro OpenAI)",
+        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini, o3 pro OpenAI Codex)",
     ),
     describe_provider: str = typer.Option(
         "claude",

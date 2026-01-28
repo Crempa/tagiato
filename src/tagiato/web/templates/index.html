@@ -155,7 +155,7 @@
                             <select class="form-select" id="describeProvider">
                                 <option value="claude">Claude</option>
                                 <option value="gemini">Gemini</option>
-                                <option value="openai">OpenAI</option>
+                                <option value="openai">OpenAI Codex</option>
                             </select>
                         </div>
                         <div class="col">
@@ -172,7 +172,7 @@
                             <select class="form-select" id="locateProvider">
                                 <option value="claude">Claude</option>
                                 <option value="gemini">Gemini</option>
-                                <option value="openai">OpenAI</option>
+                                <option value="openai">OpenAI Codex</option>
                             </select>
                         </div>
                         <div class="col">
@@ -187,7 +187,7 @@
                     <strong>Požadavky:</strong><br>
                     Claude: CLI <code>claude</code><br>
                     Gemini: CLI <code>gemini</code><br>
-                    OpenAI: env <code>OPENAI_API_KEY</code>
+                    OpenAI: CLI <code>codex</code>
                 </div>
             </div>
             <div class="modal-footer">
@@ -933,7 +933,7 @@ document.getElementById('btnClearLog').addEventListener('click', async () => {
 // --- Provider Settings ---
 const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku'];
 const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
-const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+const OPENAI_MODELS = ['o3', 'o4-mini', 'gpt-4.1'];
 
 function updateModelOptions(providerSelect, modelSelect, currentModel) {
     const provider = providerSelect.value;

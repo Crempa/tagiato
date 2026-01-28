@@ -1,16 +1,12 @@
-"""Abstrakce pro AI providery (Claude, Gemini, OpenAI)."""
+"""Abstrakce pro AI providery (Claude, Gemini, OpenAI Codex)."""
 
-import base64
 import json
-import os
 import subprocess
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-
-import requests
 
 from tagiato.core.logger import log_call, log_result, log_info, log_prompt, log_response
 from tagiato.models.location import GPSCoordinates
@@ -421,86 +417,50 @@ class GeminiProvider(AIProvider):
 
 
 class OpenAIProvider(AIProvider):
-    """OpenAI API provider (GPT-4 Vision)."""
+    """OpenAI Codex CLI provider."""
 
-    def __init__(self, model: str = "gpt-4o"):
+    def __init__(self, model: str = "o3"):
         self.model = model
-        self.api_key = os.environ.get("OPENAI_API_KEY", "")
 
     @property
     def name(self) -> str:
         return "openai"
 
     def is_available(self) -> bool:
-        return bool(self.api_key)
+        return shutil.which("codex") is not None
 
-    def _encode_image(self, image_path: Path) -> str:
-        """Načte a zakóduje obrázek do base64."""
-        with open(image_path, "rb") as f:
-            return base64.b64encode(f.read()).decode("utf-8")
-
-    def _call_api(self, prompt: str, image_path: Path) -> Optional[str]:
-        """Zavolá OpenAI Vision API."""
-        log_info(f"openai api model={self.model}")
+    def _run_codex(self, prompt: str, image_path: Path) -> Optional[str]:
+        """Spustí Codex CLI s promptem a obrázkem."""
+        log_info(f"codex exec --model {self.model} --image {image_path.name} <prompt>")
         log_prompt(prompt)
 
-        if not self.api_key:
-            log_info("OPENAI_API_KEY not set")
-            return None
-
         try:
-            image_data = self._encode_image(image_path)
-
-            # Determine image type
-            suffix = image_path.suffix.lower()
-            media_type = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
-
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            }
-
-            payload = {
-                "model": self.model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{media_type};base64,{image_data}",
-                                    "detail": "high",
-                                },
-                            },
-                        ],
-                    }
+            result = subprocess.run(
+                [
+                    "codex", "exec",
+                    "--model", self.model,
+                    "--image", str(image_path.absolute()),
+                    "--full-auto",
+                    prompt,
                 ],
-                "max_tokens": 1024,
-            }
-
-            response = requests.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=payload,
+                capture_output=True,
+                text=True,
                 timeout=120,
             )
 
-            if response.status_code != 200:
-                log_info(f"OpenAI API error: {response.status_code} {response.text}")
+            if result.returncode != 0:
+                log_info(f"codex exited with code {result.returncode}")
+                log_info(f"stderr: {result.stderr}")
                 return None
 
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            log_response(content)
-            return content
+            log_response(result.stdout)
+            return result.stdout
 
-        except requests.Timeout:
-            log_info("OpenAI API timeout after 120s")
+        except subprocess.TimeoutExpired:
+            log_info("codex timeout after 120s")
             return None
         except Exception as e:
-            log_info(f"OpenAI API error: {e}")
+            log_info(f"codex error: {e}")
             return None
 
     def describe(
@@ -521,13 +481,12 @@ class OpenAIProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
-        # Upravit prompt pro OpenAI (bez cesty k souboru, obrázek je v API)
         prompt = DESCRIBE_PROMPT_TEMPLATE.format(
-            thumbnail_path="[obrázek přiložen]",
+            thumbnail_path="[obrázek přiložen přes --image]",
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
         )
 
-        response = self._call_api(prompt, thumbnail_path)
+        response = self._run_codex(prompt, thumbnail_path)
         if not response:
             return DescriptionResult(description="")
 
@@ -561,13 +520,12 @@ class OpenAIProvider(AIProvider):
     ) -> LocationResult:
         log_call("OpenAIProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
 
-        # Upravit prompt pro OpenAI (bez cesty k souboru)
         prompt = LOCATE_PROMPT_TEMPLATE.format(
-            thumbnail_path="[obrázek přiložen]",
+            thumbnail_path="[obrázek přiložen přes --image]",
             timestamp=timestamp or "neznámé",
         )
 
-        response = self._call_api(prompt, thumbnail_path)
+        response = self._run_codex(prompt, thumbnail_path)
         if not response:
             return LocationResult()
 
@@ -599,7 +557,7 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
 
     Args:
         provider_name: "claude", "gemini" nebo "openai"
-        model: Volitelný model (default: sonnet pro Claude, gemini-2.0-flash pro Gemini, gpt-4o pro OpenAI)
+        model: Volitelný model (default: sonnet pro Claude, gemini-2.0-flash pro Gemini, o3 pro OpenAI)
 
     Returns:
         Instance AIProvider
@@ -612,7 +570,7 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
     elif provider_name == "gemini":
         return GeminiProvider(model=model or "gemini-2.0-flash")
     elif provider_name == "openai":
-        return OpenAIProvider(model=model or "gpt-4o")
+        return OpenAIProvider(model=model or "o3")
     else:
         raise ValueError(f"Neznámý AI provider: {provider_name}")
 
