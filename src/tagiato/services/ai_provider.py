@@ -110,6 +110,7 @@ class AIProvider(ABC):
         place_name: Optional[str],
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> DescriptionResult:
         """Vygeneruje popisek pro fotku."""
         pass
@@ -119,6 +120,7 @@ class AIProvider(ABC):
         self,
         thumbnail_path: Path,
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> LocationResult:
         """Určí GPS pozici fotky."""
         pass
@@ -202,6 +204,7 @@ class ClaudeProvider(AIProvider):
         place_name: Optional[str],
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("ClaudeProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -214,7 +217,8 @@ class ClaudeProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
-        prompt = DESCRIBE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
         )
@@ -251,10 +255,12 @@ class ClaudeProvider(AIProvider):
         self,
         thumbnail_path: Path,
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> LocationResult:
         log_call("ClaudeProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
 
-        prompt = LOCATE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             timestamp=timestamp or "neznámé",
         )
@@ -333,6 +339,7 @@ class GeminiProvider(AIProvider):
         place_name: Optional[str],
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("GeminiProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -345,7 +352,8 @@ class GeminiProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
-        prompt = DESCRIBE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
         )
@@ -381,10 +389,12 @@ class GeminiProvider(AIProvider):
         self,
         thumbnail_path: Path,
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> LocationResult:
         log_call("GeminiProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
 
-        prompt = LOCATE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             timestamp=timestamp or "neznámé",
         )
@@ -469,6 +479,7 @@ class OpenAIProvider(AIProvider):
         place_name: Optional[str],
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -481,7 +492,8 @@ class OpenAIProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
-        prompt = DESCRIBE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path="[obrázek přiložen přes --image]",
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
         )
@@ -517,10 +529,12 @@ class OpenAIProvider(AIProvider):
         self,
         thumbnail_path: Path,
         timestamp: Optional[str],
+        custom_prompt: Optional[str] = None,
     ) -> LocationResult:
         log_call("OpenAIProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
 
-        prompt = LOCATE_PROMPT_TEMPLATE.format(
+        template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        prompt = template.format(
             thumbnail_path="[obrázek přiložen přes --image]",
             timestamp=timestamp or "neznámé",
         )

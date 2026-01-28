@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 from tagiato.models.location import GPSCoordinates
-from tagiato.services.ai_provider import get_provider, get_available_providers
+from tagiato.services.ai_provider import get_provider, get_available_providers, DESCRIBE_PROMPT_TEMPLATE, LOCATE_PROMPT_TEMPLATE
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.services.exif_writer import ExifWriter
 from tagiato.core.exceptions import ExifError
@@ -45,6 +45,25 @@ class ProviderSettings(BaseModel):
     describe_model: Optional[str] = None
     locate_provider: Optional[str] = None
     locate_model: Optional[str] = None
+
+
+class PromptsUpdate(BaseModel):
+    """Update prompts for current session."""
+    describe_prompt: Optional[str] = None
+    locate_prompt: Optional[str] = None
+
+
+class PresetCreate(BaseModel):
+    """Create a new preset."""
+    key: str
+    name: str
+    describe_prompt: str
+    locate_prompt: str
+
+
+class PresetRename(BaseModel):
+    """Rename preset."""
+    name: str
 
 
 # --- Provider settings endpoints ---
@@ -165,6 +184,7 @@ async def generate_description(filename: str):
             place_name=photo.place_name,
             coords=photo.gps,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+            custom_prompt=app_state.describe_prompt,
         )
 
         if result.description:
@@ -224,6 +244,7 @@ async def locate_photo(filename: str):
         result = provider.locate(
             thumbnail_path=photo.thumbnail_path,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+            custom_prompt=app_state.locate_prompt,
         )
 
         if result.gps:
@@ -342,6 +363,7 @@ def _run_batch_processing():
                     result = provider.locate(
                         thumbnail_path=photo.thumbnail_path,
                         timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+                        custom_prompt=app_state.locate_prompt,
                     )
 
                     if result.gps:
@@ -371,6 +393,7 @@ def _run_batch_processing():
                             place_name=photo.place_name,
                             coords=photo.gps,
                             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+                            custom_prompt=app_state.describe_prompt,
                         )
 
                         if result.description:
@@ -508,6 +531,102 @@ async def save_all_photos(request: BatchRequest):
 
 
 # --- Geocode search proxy ---
+
+# --- Prompts settings endpoints ---
+
+@router.get("/api/settings/prompts")
+async def get_prompts_settings():
+    """Get current prompts settings."""
+    return {
+        "describe_prompt": app_state.describe_prompt,
+        "locate_prompt": app_state.locate_prompt,
+        "active_preset": app_state.active_preset,
+        "active_preset_name": app_state.presets[app_state.active_preset]["name"] if app_state.active_preset and app_state.active_preset in app_state.presets else None,
+        "default_describe_prompt": DESCRIBE_PROMPT_TEMPLATE,
+        "default_locate_prompt": LOCATE_PROMPT_TEMPLATE,
+    }
+
+
+@router.put("/api/settings/prompts")
+async def update_prompts_settings(prompts: PromptsUpdate):
+    """Update prompts for current session (without saving to preset)."""
+    if prompts.describe_prompt is not None:
+        app_state.describe_prompt = prompts.describe_prompt if prompts.describe_prompt else None
+    if prompts.locate_prompt is not None:
+        app_state.locate_prompt = prompts.locate_prompt if prompts.locate_prompt else None
+
+    return {
+        "success": True,
+        "describe_prompt": app_state.describe_prompt,
+        "locate_prompt": app_state.locate_prompt,
+    }
+
+
+@router.get("/api/settings/presets")
+async def get_presets():
+    """Get all presets."""
+    return {
+        "presets": app_state.presets,
+        "active_preset": app_state.active_preset,
+    }
+
+
+@router.post("/api/settings/presets")
+async def create_preset(preset: PresetCreate):
+    """Create a new preset and activate it."""
+    if not preset.key or not preset.name:
+        raise HTTPException(status_code=400, detail="Key and name are required")
+
+    app_state.create_preset(
+        key=preset.key,
+        name=preset.name,
+        describe_prompt=preset.describe_prompt,
+        locate_prompt=preset.locate_prompt,
+    )
+
+    return {
+        "success": True,
+        "key": preset.key,
+        "active_preset": app_state.active_preset,
+    }
+
+
+@router.put("/api/settings/presets/{key}")
+async def rename_preset(key: str, data: PresetRename):
+    """Rename a preset."""
+    if key not in app_state.presets:
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    app_state.presets[key]["name"] = data.name
+    app_state.save_presets()
+
+    return {"success": True}
+
+
+@router.delete("/api/settings/presets/{key}")
+async def delete_preset(key: str):
+    """Delete a preset."""
+    if not app_state.delete_preset(key):
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    return {
+        "success": True,
+        "active_preset": app_state.active_preset,
+    }
+
+
+@router.post("/api/settings/presets/{key}/activate")
+async def activate_preset(key: str):
+    """Activate a preset."""
+    if not app_state.activate_preset(key):
+        raise HTTPException(status_code=404, detail="Preset not found")
+
+    return {
+        "success": True,
+        "describe_prompt": app_state.describe_prompt,
+        "locate_prompt": app_state.locate_prompt,
+    }
+
 
 NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = "Tagiato/0.1.0 (https://github.com/pavelmica/tagiato)"

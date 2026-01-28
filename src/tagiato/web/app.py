@@ -42,12 +42,16 @@ def create_app(
     # Store config in app state
     app_state.photos_dir = photos_dir
     app_state.thumbnails_dir = thumbnails_dir
+    app_state.tagiato_dir = work_dir
 
     # Provider settings
     app_state.describe_provider = describe_provider
     app_state.describe_model = describe_model
     app_state.locate_provider = locate_provider
     app_state.locate_model = locate_model
+
+    # Load prompt presets
+    app_state.load_presets()
 
     # Templates
     templates_dir = Path(__file__).parent / "templates"

@@ -4,9 +4,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional, Callable, Any
 import threading
 import queue
+import json
 
 from tagiato.models.location import GPSCoordinates
 
@@ -180,12 +181,21 @@ class AppState:
         # Config
         self.photos_dir: Optional[Path] = None
         self.thumbnails_dir: Optional[Path] = None
+        self.tagiato_dir: Optional[Path] = None  # .tagiato working directory
 
         # AI provider settings
         self.describe_provider: str = "claude"  # "claude" or "gemini"
         self.describe_model: str = "sonnet"
         self.locate_provider: str = "claude"  # "claude" or "gemini"
         self.locate_model: str = "sonnet"
+
+        # Custom AI prompts (None = use default)
+        self.describe_prompt: Optional[str] = None
+        self.locate_prompt: Optional[str] = None
+
+        # Prompt presets
+        self.active_preset: Optional[str] = None  # key of active preset
+        self.presets: Dict[str, dict] = {}  # loaded presets
 
     def get_photo(self, filename: str) -> Optional[PhotoState]:
         """Get photo by filename."""
@@ -211,6 +221,101 @@ class AppState:
     def get_photos_dict(self) -> List[dict]:
         """Get all photos as dicts for JSON response."""
         return [p.to_dict() for p in self.get_all_photos()]
+
+    def load_presets(self) -> None:
+        """Načte presety z prompts.json a aktivuje poslední."""
+        if not self.tagiato_dir:
+            return
+
+        prompts_file = self.tagiato_dir / "prompts.json"
+        if not prompts_file.exists():
+            return
+
+        try:
+            with open(prompts_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            self.presets = data.get("presets", {})
+            last_active = data.get("last_active")
+
+            # Activate last used preset if exists
+            if last_active and last_active in self.presets:
+                self._activate_preset_internal(last_active)
+
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    def save_presets(self) -> None:
+        """Uloží presety do prompts.json."""
+        if not self.tagiato_dir:
+            return
+
+        prompts_file = self.tagiato_dir / "prompts.json"
+        data = {
+            "last_active": self.active_preset,
+            "presets": self.presets,
+        }
+
+        try:
+            with open(prompts_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except IOError:
+            pass
+
+    def _activate_preset_internal(self, key: str) -> bool:
+        """Aktivuje preset bez ukládání."""
+        if key not in self.presets:
+            return False
+
+        preset = self.presets[key]
+        self.describe_prompt = preset.get("describe_prompt")
+        self.locate_prompt = preset.get("locate_prompt")
+        self.active_preset = key
+        return True
+
+    def activate_preset(self, key: str) -> bool:
+        """Aktivuje preset a uloží jako poslední použitý."""
+        if not self._activate_preset_internal(key):
+            return False
+        self.save_presets()
+        return True
+
+    def create_preset(self, key: str, name: str, describe_prompt: str, locate_prompt: str) -> None:
+        """Vytvoří nový preset a aktivuje ho."""
+        self.presets[key] = {
+            "name": name,
+            "describe_prompt": describe_prompt,
+            "locate_prompt": locate_prompt,
+        }
+        self.describe_prompt = describe_prompt
+        self.locate_prompt = locate_prompt
+        self.active_preset = key
+        self.save_presets()
+
+    def delete_preset(self, key: str) -> bool:
+        """Smaže preset."""
+        if key not in self.presets:
+            return False
+
+        del self.presets[key]
+
+        # If deleted preset was active, reset prompts
+        if self.active_preset == key:
+            self.active_preset = None
+            self.describe_prompt = None
+            self.locate_prompt = None
+
+        self.save_presets()
+        return True
+
+    def get_prompts_state(self) -> dict:
+        """Vrátí aktuální stav promptů pro API."""
+        return {
+            "describe_prompt": self.describe_prompt,
+            "locate_prompt": self.locate_prompt,
+            "active_preset": self.active_preset,
+            "active_preset_name": self.presets[self.active_preset]["name"] if self.active_preset and self.active_preset in self.presets else None,
+        }
 
 
 # Global app state
