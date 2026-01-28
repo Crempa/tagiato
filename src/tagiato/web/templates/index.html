@@ -155,6 +155,7 @@
                             <select class="form-select" id="describeProvider">
                                 <option value="claude">Claude</option>
                                 <option value="gemini">Gemini</option>
+                                <option value="openai">OpenAI</option>
                             </select>
                         </div>
                         <div class="col">
@@ -171,6 +172,7 @@
                             <select class="form-select" id="locateProvider">
                                 <option value="claude">Claude</option>
                                 <option value="gemini">Gemini</option>
+                                <option value="openai">OpenAI</option>
                             </select>
                         </div>
                         <div class="col">
@@ -182,7 +184,10 @@
                 </div>
                 <div class="alert alert-info small mb-0">
                     <i class="bi bi-info-circle me-1"></i>
-                    Pro použití Gemini musí být nainstalováno CLI: <code>gemini</code>
+                    <strong>Požadavky:</strong><br>
+                    Claude: CLI <code>claude</code><br>
+                    Gemini: CLI <code>gemini</code><br>
+                    OpenAI: env <code>OPENAI_API_KEY</code>
                 </div>
             </div>
             <div class="modal-footer">
@@ -928,10 +933,12 @@ document.getElementById('btnClearLog').addEventListener('click', async () => {
 // --- Provider Settings ---
 const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku'];
 const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
 
 function updateModelOptions(providerSelect, modelSelect, currentModel) {
     const provider = providerSelect.value;
-    const models = provider === 'claude' ? CLAUDE_MODELS : GEMINI_MODELS;
+    const models = provider === 'claude' ? CLAUDE_MODELS :
+                   provider === 'gemini' ? GEMINI_MODELS : OPENAI_MODELS;
 
     modelSelect.innerHTML = models.map(m =>
         `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`

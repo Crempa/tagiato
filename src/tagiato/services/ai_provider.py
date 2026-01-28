@@ -1,12 +1,16 @@
-"""Abstrakce pro AI providery (Claude, Gemini)."""
+"""Abstrakce pro AI providery (Claude, Gemini, OpenAI)."""
 
+import base64
 import json
+import os
 import subprocess
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+import requests
 
 from tagiato.core.logger import log_call, log_result, log_info, log_prompt, log_response
 from tagiato.models.location import GPSCoordinates
@@ -416,12 +420,186 @@ class GeminiProvider(AIProvider):
             return LocationResult()
 
 
+class OpenAIProvider(AIProvider):
+    """OpenAI API provider (GPT-4 Vision)."""
+
+    def __init__(self, model: str = "gpt-4o"):
+        self.model = model
+        self.api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    @property
+    def name(self) -> str:
+        return "openai"
+
+    def is_available(self) -> bool:
+        return bool(self.api_key)
+
+    def _encode_image(self, image_path: Path) -> str:
+        """Načte a zakóduje obrázek do base64."""
+        with open(image_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+
+    def _call_api(self, prompt: str, image_path: Path) -> Optional[str]:
+        """Zavolá OpenAI Vision API."""
+        log_info(f"openai api model={self.model}")
+        log_prompt(prompt)
+
+        if not self.api_key:
+            log_info("OPENAI_API_KEY not set")
+            return None
+
+        try:
+            image_data = self._encode_image(image_path)
+
+            # Determine image type
+            suffix = image_path.suffix.lower()
+            media_type = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
+
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{media_type};base64,{image_data}",
+                                    "detail": "high",
+                                },
+                            },
+                        ],
+                    }
+                ],
+                "max_tokens": 1024,
+            }
+
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=120,
+            )
+
+            if response.status_code != 200:
+                log_info(f"OpenAI API error: {response.status_code} {response.text}")
+                return None
+
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            log_response(content)
+            return content
+
+        except requests.Timeout:
+            log_info("OpenAI API timeout after 120s")
+            return None
+        except Exception as e:
+            log_info(f"OpenAI API error: {e}")
+            return None
+
+    def describe(
+        self,
+        thumbnail_path: Path,
+        place_name: Optional[str],
+        coords: Optional[GPSCoordinates],
+        timestamp: Optional[str],
+    ) -> DescriptionResult:
+        log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
+
+        # Dynamicky sestavit kontextové řádky
+        context_lines = []
+        if coords:
+            context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
+        if place_name:
+            context_lines.append(f"- Místo (hrubý odhad): {place_name}")
+        if timestamp:
+            context_lines.append(f"- Datum: {timestamp}")
+
+        # Upravit prompt pro OpenAI (bez cesty k souboru, obrázek je v API)
+        prompt = DESCRIBE_PROMPT_TEMPLATE.format(
+            thumbnail_path="[obrázek přiložen]",
+            context_lines="\n".join(context_lines) + "\n" if context_lines else "",
+        )
+
+        response = self._call_api(prompt, thumbnail_path)
+        if not response:
+            return DescriptionResult(description="")
+
+        try:
+            data = _parse_json_response(response)
+            refined_gps = None
+            if data.get("refined_gps"):
+                gps_data = data["refined_gps"]
+                refined_gps = GPSCoordinates(
+                    latitude=float(gps_data["lat"]),
+                    longitude=float(gps_data["lng"]),
+                )
+
+            result = DescriptionResult(
+                description=data.get("description", ""),
+                refined_gps=refined_gps,
+                gps_confidence=data.get("gps_confidence", "unchanged"),
+            )
+            log_result("OpenAIProvider", "describe", f"description={len(result.description)} chars")
+            return result
+
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            if response and not response.strip().startswith("{"):
+                return DescriptionResult(description=response.strip())
+            return DescriptionResult(description="")
+
+    def locate(
+        self,
+        thumbnail_path: Path,
+        timestamp: Optional[str],
+    ) -> LocationResult:
+        log_call("OpenAIProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
+
+        # Upravit prompt pro OpenAI (bez cesty k souboru)
+        prompt = LOCATE_PROMPT_TEMPLATE.format(
+            thumbnail_path="[obrázek přiložen]",
+            timestamp=timestamp or "neznámé",
+        )
+
+        response = self._call_api(prompt, thumbnail_path)
+        if not response:
+            return LocationResult()
+
+        try:
+            data = _parse_json_response(response)
+            gps = None
+            if data.get("gps"):
+                gps_data = data["gps"]
+                gps = GPSCoordinates(
+                    latitude=float(gps_data["lat"]),
+                    longitude=float(gps_data["lng"]),
+                )
+
+            result = LocationResult(
+                gps=gps,
+                confidence=data.get("confidence", "low"),
+                location_name=data.get("location_name", ""),
+                reasoning=data.get("reasoning", ""),
+            )
+            log_result("OpenAIProvider", "locate", f"gps={result.gps is not None}, confidence={result.confidence}")
+            return result
+
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return LocationResult()
+
+
 def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
     """Factory funkce pro vytvoření AI providera.
 
     Args:
-        provider_name: "claude" nebo "gemini"
-        model: Volitelný model (default: sonnet pro Claude, gemini-2.0-flash pro Gemini)
+        provider_name: "claude", "gemini" nebo "openai"
+        model: Volitelný model (default: sonnet pro Claude, gemini-2.0-flash pro Gemini, gpt-4o pro OpenAI)
 
     Returns:
         Instance AIProvider
@@ -433,6 +611,8 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
         return ClaudeProvider(model=model or "sonnet")
     elif provider_name == "gemini":
         return GeminiProvider(model=model or "gemini-2.0-flash")
+    elif provider_name == "openai":
+        return OpenAIProvider(model=model or "gpt-4o")
     else:
         raise ValueError(f"Neznámý AI provider: {provider_name}")
 
@@ -444,4 +624,6 @@ def get_available_providers() -> list[str]:
         available.append("claude")
     if GeminiProvider().is_available():
         available.append("gemini")
+    if OpenAIProvider().is_available():
+        available.append("openai")
     return available

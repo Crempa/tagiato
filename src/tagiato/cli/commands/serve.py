@@ -33,17 +33,17 @@ def serve(
         "sonnet",
         "--model",
         "-m",
-        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini)",
+        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini, gpt-4o pro OpenAI)",
     ),
     describe_provider: str = typer.Option(
         "claude",
         "--describe-provider",
-        help="Provider pro generování popisků (claude/gemini)",
+        help="Provider pro generování popisků (claude/gemini/openai)",
     ),
     locate_provider: str = typer.Option(
         "claude",
         "--locate-provider",
-        help="Provider pro lokalizaci (claude/gemini)",
+        help="Provider pro lokalizaci (claude/gemini/openai)",
     ),
     port: int = typer.Option(
         8000,

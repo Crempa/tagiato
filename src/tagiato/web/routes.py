@@ -65,7 +65,7 @@ async def get_provider_settings():
 async def update_provider_settings(settings: ProviderSettings):
     """Update AI provider settings."""
     if settings.describe_provider is not None:
-        if settings.describe_provider not in ("claude", "gemini"):
+        if settings.describe_provider not in ("claude", "gemini", "openai"):
             raise HTTPException(status_code=400, detail="Invalid describe provider")
         app_state.describe_provider = settings.describe_provider
 
@@ -73,7 +73,7 @@ async def update_provider_settings(settings: ProviderSettings):
         app_state.describe_model = settings.describe_model
 
     if settings.locate_provider is not None:
-        if settings.locate_provider not in ("claude", "gemini"):
+        if settings.locate_provider not in ("claude", "gemini", "openai"):
             raise HTTPException(status_code=400, detail="Invalid locate provider")
         app_state.locate_provider = settings.locate_provider
 
