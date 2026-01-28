@@ -48,6 +48,9 @@ class PhotoScanner:
             # Přečíst GPS pokud existuje
             photo.original_gps = self._extract_gps(exif_dict)
 
+            # Přečíst popisek pokud existuje
+            photo.description = self._extract_description(exif_dict)
+
         except Exception:
             # Pokud EXIF nelze přečíst, pokračujeme bez něj
             pass
@@ -123,3 +126,19 @@ class PhotoScanner:
         minutes = dms[1][0] / dms[1][1]
         seconds = dms[2][0] / dms[2][1]
         return degrees + minutes / 60 + seconds / 3600
+
+    def _extract_description(self, exif_dict: dict) -> str:
+        """Extrahuje popisek z EXIF dat."""
+        # Zkusit ImageDescription v IFD0
+        ifd0_data = exif_dict.get("0th", {})
+        description = ifd0_data.get(piexif.ImageIFD.ImageDescription)
+
+        if description:
+            try:
+                if isinstance(description, bytes):
+                    return description.decode("utf-8")
+                return str(description)
+            except (ValueError, UnicodeDecodeError):
+                pass
+
+        return ""

@@ -1,0 +1,549 @@
+"""API endpointy pro web UI."""
+
+import asyncio
+from pathlib import Path
+from typing import Optional
+import threading
+
+from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from pydantic import BaseModel
+
+from tagiato.models.location import GPSCoordinates
+from tagiato.services.describer import ClaudeDescriber
+from tagiato.services.thumbnail import ThumbnailGenerator
+from tagiato.services.exif_writer import ExifWriter
+from tagiato.core.exceptions import ExifError
+from tagiato.web.state import app_state, ProcessingStatus, log_buffer
+
+import requests
+
+router = APIRouter()
+
+
+class GPSInput(BaseModel):
+    """GPS coordinates input."""
+    lat: float
+    lng: float
+
+
+class PhotoUpdate(BaseModel):
+    """Update photo data."""
+    gps: Optional[GPSInput] = None
+    description: Optional[str] = None
+
+
+class BatchRequest(BaseModel):
+    """Batch processing request."""
+    photos: Optional[list[str]] = None  # None = all photos
+    operation: str = "describe"  # "describe" or "locate"
+
+
+# --- Photo endpoints ---
+
+@router.get("/api/photos")
+async def list_photos(
+    filter: str = Query("all", pattern="^(all|with_description|without_description)$"),
+    sort: str = Query("date", pattern="^(date|name)$"),
+):
+    """Get list of all photos."""
+    photos = app_state.get_photos_dict()
+
+    # Filter
+    if filter == "with_description":
+        photos = [p for p in photos if p["description"]]
+    elif filter == "without_description":
+        photos = [p for p in photos if not p["description"]]
+
+    # Sort
+    if sort == "name":
+        photos.sort(key=lambda p: p["filename"])
+    # date sorting is default from app_state
+
+    return {"photos": photos}
+
+
+@router.get("/api/photos/{filename}/thumbnail")
+async def get_thumbnail(filename: str):
+    """Get thumbnail image for photo."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    if not photo.thumbnail_path or not photo.thumbnail_path.exists():
+        # Generate thumbnail on-the-fly
+        if app_state.thumbnails_dir and photo.path.exists():
+            generator = ThumbnailGenerator(app_state.thumbnails_dir)
+            try:
+                photo.thumbnail_path = generator.generate(photo.path)
+                app_state.update_photo(filename, thumbnail_path=photo.thumbnail_path)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to generate thumbnail: {e}")
+
+    if photo.thumbnail_path and photo.thumbnail_path.exists():
+        return FileResponse(
+            photo.thumbnail_path,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+
+    raise HTTPException(status_code=404, detail="Thumbnail not available")
+
+
+@router.post("/api/photos/{filename}/generate")
+async def generate_description(filename: str):
+    """Generate AI description for a photo."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
+
+    try:
+        # Ensure thumbnail exists
+        if not photo.thumbnail_path or not photo.thumbnail_path.exists():
+            if app_state.thumbnails_dir:
+                generator = ThumbnailGenerator(app_state.thumbnails_dir)
+                photo.thumbnail_path = generator.generate(photo.path)
+
+        if not photo.thumbnail_path:
+            raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
+
+        describer = ClaudeDescriber(model=app_state.model)
+        result = describer.describe(
+            thumbnail_path=photo.thumbnail_path,
+            place_name=photo.place_name,
+            coords=photo.gps,
+            timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+        )
+
+        if result.description:
+            app_state.update_photo(
+                filename,
+                description=result.description,
+                ai_status=ProcessingStatus.DONE,
+                ai_error=None,
+                ai_empty_response=False,
+                is_dirty=True,
+            )
+            # Update GPS if refined
+            if result.refined_gps:
+                app_state.update_photo(
+                    filename,
+                    gps=result.refined_gps,
+                    gps_source="ai",
+                )
+            return {"success": True, "description": result.description}
+        else:
+            app_state.update_photo(
+                filename,
+                ai_status=ProcessingStatus.DONE,
+                ai_empty_response=True,
+            )
+            return {"success": True, "description": "", "empty": True}
+
+    except Exception as e:
+        app_state.update_photo(
+            filename,
+            ai_status=ProcessingStatus.ERROR,
+            ai_error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/photos/{filename}/locate")
+async def locate_photo(filename: str):
+    """Use AI to determine precise GPS location of a photo."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    app_state.update_photo(filename, locate_status=ProcessingStatus.PROCESSING)
+
+    try:
+        # Ensure thumbnail exists
+        if not photo.thumbnail_path or not photo.thumbnail_path.exists():
+            if app_state.thumbnails_dir:
+                generator = ThumbnailGenerator(app_state.thumbnails_dir)
+                photo.thumbnail_path = generator.generate(photo.path)
+
+        if not photo.thumbnail_path:
+            raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
+
+        describer = ClaudeDescriber(model=app_state.model)
+        result = describer.locate(
+            thumbnail_path=photo.thumbnail_path,
+            place_name=photo.place_name,
+            coords=photo.gps,
+            timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+        )
+
+        if result.gps:
+            app_state.update_photo(
+                filename,
+                gps=result.gps,
+                gps_source="ai",
+                locate_status=ProcessingStatus.DONE,
+                locate_error=None,
+                locate_confidence=result.confidence,
+                locate_name=result.location_name,
+                is_dirty=True,
+            )
+            return {
+                "success": True,
+                "gps": {"lat": result.gps.latitude, "lng": result.gps.longitude},
+                "confidence": result.confidence,
+                "location_name": result.location_name,
+                "reasoning": result.reasoning,
+            }
+        else:
+            app_state.update_photo(
+                filename,
+                locate_status=ProcessingStatus.DONE,
+                locate_confidence="low",
+                locate_name="",
+            )
+            return {
+                "success": True,
+                "gps": None,
+                "confidence": result.confidence,
+                "reasoning": result.reasoning,
+            }
+
+    except Exception as e:
+        app_state.update_photo(
+            filename,
+            locate_status=ProcessingStatus.ERROR,
+            locate_error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/api/photos/{filename}")
+async def update_photo(filename: str, data: PhotoUpdate):
+    """Update photo data and save to EXIF."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    # Update GPS if provided
+    if data.gps:
+        new_gps = GPSCoordinates(latitude=data.gps.lat, longitude=data.gps.lng)
+        app_state.update_photo(filename, gps=new_gps, gps_source="manual", is_dirty=True)
+
+    # Update description if provided
+    if data.description is not None:
+        app_state.update_photo(filename, description=data.description, is_dirty=True)
+
+    # Get updated photo
+    photo = app_state.get_photo(filename)
+
+    # Write to EXIF
+    try:
+        writer = ExifWriter()
+        writer.write(
+            photo_path=photo.path,
+            gps=photo.gps,
+            description=photo.description if photo.description else None,
+            skip_existing_gps=False,  # Always overwrite in serve mode
+        )
+        app_state.update_photo(filename, is_dirty=False)
+        return {"success": True, "message": "Saved to EXIF"}
+
+    except ExifError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Batch processing endpoints ---
+
+def _run_batch_processing():
+    """Background worker for batch processing."""
+    while True:
+        with app_state.lock:
+            if app_state.batch.should_stop or not app_state.batch.queue:
+                app_state.batch.is_running = False
+                app_state.batch.should_stop = False
+                app_state.batch.current_photo = None
+                return
+
+            filename = app_state.batch.queue.pop(0)
+            app_state.batch.current_photo = filename
+            operation = app_state.batch.operation
+
+        photo = app_state.get_photo(filename)
+        if not photo:
+            continue
+
+        # Check for stop signal
+        if app_state.batch.should_stop:
+            continue
+
+        try:
+            # Ensure thumbnail
+            if not photo.thumbnail_path or not photo.thumbnail_path.exists():
+                if app_state.thumbnails_dir:
+                    generator = ThumbnailGenerator(app_state.thumbnails_dir)
+                    photo.thumbnail_path = generator.generate(photo.path)
+                    app_state.update_photo(filename, thumbnail_path=photo.thumbnail_path)
+
+            if photo.thumbnail_path:
+                describer = ClaudeDescriber(model=app_state.model)
+
+                if operation == "locate":
+                    # Batch locate
+                    app_state.update_photo(filename, locate_status=ProcessingStatus.PROCESSING)
+                    result = describer.locate(
+                        thumbnail_path=photo.thumbnail_path,
+                        place_name=photo.place_name,
+                        coords=photo.gps,
+                        timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+                    )
+
+                    if result.gps:
+                        app_state.update_photo(
+                            filename,
+                            gps=result.gps,
+                            gps_source="ai",
+                            locate_status=ProcessingStatus.DONE,
+                            locate_confidence=result.confidence,
+                            locate_name=result.location_name,
+                            is_dirty=True,
+                        )
+                    else:
+                        app_state.update_photo(
+                            filename,
+                            locate_status=ProcessingStatus.DONE,
+                            locate_confidence="low",
+                        )
+
+                else:
+                    # Batch describe (default)
+                    if not photo.description and photo.ai_status != ProcessingStatus.DONE:
+                        app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
+                        result = describer.describe(
+                            thumbnail_path=photo.thumbnail_path,
+                            place_name=photo.place_name,
+                            coords=photo.gps,
+                            timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
+                        )
+
+                        if result.description:
+                            app_state.update_photo(
+                                filename,
+                                description=result.description,
+                                ai_status=ProcessingStatus.DONE,
+                                is_dirty=True,
+                            )
+                            if result.refined_gps:
+                                app_state.update_photo(
+                                    filename,
+                                    gps=result.refined_gps,
+                                    gps_source="ai",
+                                )
+                        else:
+                            app_state.update_photo(
+                                filename,
+                                ai_status=ProcessingStatus.DONE,
+                                ai_empty_response=True,
+                            )
+
+        except Exception as e:
+            if operation == "locate":
+                app_state.update_photo(
+                    filename,
+                    locate_status=ProcessingStatus.ERROR,
+                    locate_error=str(e),
+                )
+            else:
+                app_state.update_photo(
+                    filename,
+                    ai_status=ProcessingStatus.ERROR,
+                    ai_error=str(e),
+                )
+
+        with app_state.lock:
+            app_state.batch.completed.append(filename)
+
+
+@router.post("/api/batch/start")
+async def start_batch(request: BatchRequest):
+    """Start batch processing."""
+    if request.operation not in ("describe", "locate"):
+        raise HTTPException(status_code=400, detail="Invalid operation")
+
+    with app_state.lock:
+        if app_state.batch.is_running:
+            raise HTTPException(status_code=400, detail="Batch processing already running")
+
+        # Determine which photos to process
+        if request.photos:
+            queue = [p for p in request.photos if p in app_state.photos]
+        else:
+            queue = list(app_state.photos_order)
+
+        if not queue:
+            raise HTTPException(status_code=400, detail="No photos to process")
+
+        app_state.batch.queue = queue
+        app_state.batch.completed = []
+        app_state.batch.is_running = True
+        app_state.batch.should_stop = False
+        app_state.batch.operation = request.operation
+
+    # Start background thread
+    thread = threading.Thread(target=_run_batch_processing, daemon=True)
+    thread.start()
+
+    return {"success": True, "queue_count": len(queue), "operation": request.operation}
+
+
+@router.post("/api/batch/stop")
+async def stop_batch():
+    """Stop batch processing after current photo."""
+    with app_state.lock:
+        if not app_state.batch.is_running:
+            return {"success": True, "message": "Not running"}
+
+        app_state.batch.should_stop = True
+        return {"success": True, "message": "Stopping after current photo"}
+
+
+@router.get("/api/batch/status")
+async def batch_status():
+    """Get batch processing status."""
+    return app_state.batch.to_dict()
+
+
+# --- Save all endpoint ---
+
+@router.post("/api/photos/save-all")
+async def save_all_photos(request: BatchRequest):
+    """Save all (or selected) photos to EXIF."""
+    # Determine which photos to save
+    if request.photos:
+        filenames = [p for p in request.photos if p in app_state.photos]
+    else:
+        filenames = list(app_state.photos_order)
+
+    if not filenames:
+        raise HTTPException(status_code=400, detail="No photos to save")
+
+    writer = ExifWriter()
+    saved = 0
+    errors = []
+
+    for filename in filenames:
+        photo = app_state.get_photo(filename)
+        if not photo:
+            continue
+
+        # Skip if nothing to save
+        if not photo.gps and not photo.description:
+            continue
+
+        try:
+            writer.write(
+                photo_path=photo.path,
+                gps=photo.gps,
+                description=photo.description if photo.description else None,
+                skip_existing_gps=False,
+            )
+            app_state.update_photo(filename, is_dirty=False)
+            saved += 1
+        except ExifError as e:
+            errors.append(f"{filename}: {str(e)}")
+
+    return {
+        "success": True,
+        "saved": saved,
+        "total": len(filenames),
+        "errors": errors if errors else None,
+    }
+
+
+# --- Geocode search proxy ---
+
+NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
+USER_AGENT = "Tagiato/0.1.0 (https://github.com/pavelmica/tagiato)"
+
+
+@router.get("/api/geocode/search")
+async def geocode_search(q: str = Query(..., min_length=2)):
+    """Nominatim search autocomplete proxy."""
+    try:
+        response = requests.get(
+            NOMINATIM_SEARCH_URL,
+            params={
+                "q": q,
+                "format": "json",
+                "addressdetails": 1,
+                "limit": 5,
+            },
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        response.raise_for_status()
+
+        results = []
+        for item in response.json():
+            results.append({
+                "display_name": item.get("display_name", ""),
+                "lat": float(item.get("lat", 0)),
+                "lng": float(item.get("lon", 0)),
+            })
+
+        return {"results": results}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Logs endpoints ---
+
+import json
+
+@router.get("/api/logs")
+async def get_logs():
+    """Get all log entries."""
+    return {"logs": log_buffer.get_all()}
+
+
+@router.delete("/api/logs")
+async def clear_logs():
+    """Clear log buffer."""
+    log_buffer.clear()
+    return {"success": True}
+
+
+@router.get("/api/logs/stream")
+async def stream_logs():
+    """SSE stream of log entries."""
+    async def event_generator():
+        q = log_buffer.subscribe()
+        try:
+            # Nejprve poslat existující logy
+            for entry in log_buffer.get_all():
+                yield f"data: {json.dumps(entry)}\n\n"
+
+            # Pak streamovat nové
+            while True:
+                try:
+                    # Čekat na nový log entry (s timeoutem pro keep-alive)
+                    entry = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: q.get(timeout=30)
+                    )
+                    yield f"data: {json.dumps(entry)}\n\n"
+                except Exception:
+                    # Timeout - poslat keep-alive
+                    yield ": keep-alive\n\n"
+        finally:
+            log_buffer.unsubscribe(q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )

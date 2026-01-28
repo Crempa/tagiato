@@ -1,0 +1,872 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="app-header">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="h4 mb-0">
+                    <i class="bi bi-images me-2"></i>{{ folder_name }}
+                </h1>
+                <small class="text-muted">{{ photos_count }} fotek | model: {{ model }}</small>
+            </div>
+            <div class="col-auto ms-auto d-flex gap-2 align-items-center flex-wrap">
+                <!-- Batch controls -->
+                <div id="batchControls" class="d-flex gap-2 flex-wrap">
+                    <!-- Popisky dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" id="btnDescribeDropdown">
+                            <i class="bi bi-stars me-1"></i>Popisky
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnDescribeAll">Generovat vše</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnDescribeSelected">Generovat vybrané</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Lokalizace dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" id="btnLocateDropdown">
+                            <i class="bi bi-geo-alt me-1"></i>Lokalizace
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnLocateAll">Lokalizovat vše</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnLocateSelected">Lokalizovat vybrané</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Uložit dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" id="btnSaveDropdown">
+                            <i class="bi bi-check-lg me-1"></i>Uložit
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnSaveAll">Uložit vše</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnSaveSelected">Uložit vybrané</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Stop button -->
+                    <button class="btn btn-danger d-none" id="btnStop">
+                        <i class="bi bi-stop-fill me-1"></i>Stop
+                    </button>
+                </div>
+
+                <!-- Batch status -->
+                <div class="batch-status" id="batchStatus">
+                    <span class="badge bg-info">
+                        <i class="bi bi-hourglass-split me-1 status-processing"></i>
+                        <span id="batchStatusText">Zpracovávám...</span>
+                    </span>
+                </div>
+
+                <!-- Log toggle -->
+                <button class="btn btn-outline-secondary btn-sm" id="btnToggleLog" title="Zobrazit/skrýt log">
+                    <i class="bi bi-terminal me-1"></i>Log
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="row mt-2">
+            <div class="col-auto">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input photo-checkbox" type="checkbox" id="selectAll">
+                    <label class="form-check-label" for="selectAll">Vybrat vše</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="filter" id="filterAll" value="all" checked>
+                    <label class="btn btn-outline-secondary" for="filterAll">Vše</label>
+
+                    <input type="radio" class="btn-check" name="filter" id="filterWithDesc" value="with_description">
+                    <label class="btn btn-outline-secondary" for="filterWithDesc">S popiskem</label>
+
+                    <input type="radio" class="btn-check" name="filter" id="filterWithoutDesc" value="without_description">
+                    <label class="btn btn-outline-secondary" for="filterWithoutDesc">Bez popisku</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="sort" id="sortDate" value="date" checked>
+                    <label class="btn btn-outline-secondary" for="sortDate">Podle data</label>
+
+                    <input type="radio" class="btn-check" name="sort" id="sortName" value="name">
+                    <label class="btn btn-outline-secondary" for="sortName">Podle jmena</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid">
+    <div id="photosList">
+        <!-- Photos will be loaded here -->
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Nacitam...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Map Modal -->
+<div class="modal fade" id="mapModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Vybrat polohu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="map-search-container position-relative">
+                    <input type="text" class="form-control" id="mapSearch" placeholder="Hledat misto...">
+                    <div class="search-results d-none" id="searchResults"></div>
+                </div>
+                <div id="map"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrusit</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmLocation">Potvrdit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Panel -->
+<div id="logPanel" class="log-panel d-none">
+    <div class="log-header">
+        <span><i class="bi bi-terminal me-2"></i>Log</span>
+        <div>
+            <button class="btn btn-sm btn-outline-light me-2" id="btnClearLog" title="Vymazat log">
+                <i class="bi bi-trash"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-light" id="btnCloseLog" title="Zavřít">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+    <div class="log-content" id="logContent">
+        <div class="log-entry log-info">Připojuji se k logu...</div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global state
+let photos = [];
+let selectedPhotos = new Set();
+let map = null;
+let mapMarker = null;
+let currentMapPhotoFilename = null;
+let mapSelectedCoords = null;
+
+// Toast helper
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toastId = 'toast-' + Date.now();
+
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-warning';
+    const textClass = type === 'warning' ? 'text-dark' : 'text-white';
+
+    container.innerHTML += `
+        <div id="${toastId}" class="toast ${bgClass} ${textClass}" role="alert">
+            <div class="toast-body d-flex align-items-center">
+                <span>${message}</span>
+                <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    const toastEl = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+// Render photo card
+function renderPhotoCard(photo) {
+    const gpsStatus = photo.gps ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
+
+    let aiStatus, aiBadge;
+    if (photo.ai_empty_response) {
+        aiStatus = 'bi-exclamation-circle-fill text-warning';
+        aiBadge = '<span class="badge badge-warning">Nerozpoznano</span>';
+    } else if (photo.description) {
+        aiStatus = 'bi-check-circle-fill text-success';
+        aiBadge = '';
+    } else {
+        aiStatus = 'bi-x-circle-fill text-danger';
+        aiBadge = '';
+    }
+
+    const gpsValue = photo.gps ? `${photo.gps.lat.toFixed(6)}, ${photo.gps.lng.toFixed(6)}` : '';
+
+    const isSelected = selectedPhotos.has(photo.filename);
+
+    let aiIndicator = '';
+    if (photo.ai_status === 'processing') {
+        aiIndicator = '<i class="bi bi-arrow-repeat status-processing ms-1"></i>';
+    }
+
+    let locateIndicator = '';
+    if (photo.locate_status === 'processing') {
+        locateIndicator = '<i class="bi bi-arrow-repeat status-processing ms-1"></i>';
+    } else if (photo.locate_status === 'done' && photo.locate_confidence) {
+        const confIcon = photo.locate_confidence === 'high' ? 'text-success' :
+                        photo.locate_confidence === 'medium' ? 'text-warning' : 'text-secondary';
+        locateIndicator = `<i class="bi bi-geo-alt-fill ${confIcon} ms-1" title="Lokalizováno (${photo.locate_confidence})"></i>`;
+    }
+
+    return `
+        <div class="photo-card" data-filename="${photo.filename}">
+            <div class="photo-card-header">
+                <input type="checkbox" class="form-check-input photo-checkbox photo-select"
+                       data-filename="${photo.filename}" ${isSelected ? 'checked' : ''}>
+                <strong>${photo.filename}</strong>
+                <span class="ms-auto">
+                    <span class="me-2" title="GPS"><i class="bi ${gpsStatus} status-icon"></i> GPS${locateIndicator}</span>
+                    <span title="AI"><i class="bi ${aiStatus} status-icon"></i> AI${aiIndicator}</span>
+                    ${aiBadge}
+                </span>
+            </div>
+            <div class="photo-card-body">
+                <div class="photo-image-container">
+                    <img src="/api/photos/${encodeURIComponent(photo.filename)}/thumbnail"
+                         class="photo-image" alt="${photo.filename}"
+                         loading="lazy">
+                </div>
+                <div class="photo-details">
+                    <div class="mb-3">
+                        <label class="form-label">GPS</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control gps-input"
+                                   id="gps-${photo.filename}" value="${gpsValue}"
+                                   placeholder="lat, lng">
+                            <button class="btn btn-outline-secondary map-btn"
+                                    data-filename="${photo.filename}" title="Vybrat na mape">
+                                <i class="bi bi-map"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">Zdroj: ${photo.gps_source || 'zadny'}</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Popisek</label>
+                        <textarea class="form-control description-textarea"
+                                  id="desc-${photo.filename}">${photo.description || ''}</textarea>
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-outline-secondary btn-sm btn-locate"
+                                data-filename="${photo.filename}">
+                            <i class="bi bi-geo-alt me-1"></i>Lokalizovat
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm btn-generate"
+                                data-filename="${photo.filename}">
+                            <i class="bi bi-stars me-1"></i>Generate AI
+                        </button>
+                        <button class="btn btn-success btn-sm btn-save"
+                                data-filename="${photo.filename}">
+                            <i class="bi bi-check-lg me-1"></i>Ulozit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Load and render photos
+async function loadPhotos() {
+    const filter = document.querySelector('input[name="filter"]:checked').value;
+    const sort = document.querySelector('input[name="sort"]:checked').value;
+
+    try {
+        const response = await fetch(`/api/photos?filter=${filter}&sort=${sort}`);
+        const data = await response.json();
+        photos = data.photos;
+
+        const container = document.getElementById('photosList');
+        if (photos.length === 0) {
+            container.innerHTML = '<div class="text-center py-5 text-muted">Zadne fotky</div>';
+            return;
+        }
+
+        container.innerHTML = photos.map(renderPhotoCard).join('');
+        updateSelectAllState();
+    } catch (error) {
+        console.error('Failed to load photos:', error);
+        showToast('Chyba pri nacitani fotek', 'error');
+    }
+}
+
+// Update single photo in UI (without re-attaching listeners)
+function updatePhotoInUI(filename, updatedData) {
+    const photo = photos.find(p => p.filename === filename);
+    if (photo) {
+        Object.assign(photo, updatedData);
+        const card = document.querySelector(`.photo-card[data-filename="${filename}"]`);
+        if (card) {
+            card.outerHTML = renderPhotoCard(photo);
+        }
+    }
+}
+
+// Event delegation - handle all clicks on photosList container
+document.getElementById('photosList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const filename = btn.dataset.filename;
+    if (!filename) return;
+
+    // Locate button
+    if (btn.classList.contains('btn-locate')) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat status-processing me-1"></i>Hledam...';
+
+        try {
+            const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/locate`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                if (data.gps) {
+                    // Update GPS input
+                    const gpsInput = document.getElementById(`gps-${filename}`);
+                    if (gpsInput) {
+                        gpsInput.value = `${data.gps.lat.toFixed(6)}, ${data.gps.lng.toFixed(6)}`;
+                    }
+
+                    // Show result
+                    const confidenceText = data.confidence === 'high' ? 'vysoká' :
+                                          data.confidence === 'medium' ? 'střední' : 'nízká';
+                    let message = `Lokalizováno: ${data.location_name || 'neznámé místo'}`;
+                    message += ` (jistota: ${confidenceText})`;
+                    showToast(message);
+
+                    // Update photo in state
+                    updatePhotoInUI(filename, {
+                        gps: data.gps,
+                        gps_source: 'ai',
+                        locate_status: 'done',
+                        locate_confidence: data.confidence,
+                        locate_name: data.location_name
+                    });
+                } else {
+                    showToast('AI nerozpoznalo místo na fotce', 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
+                }
+            } else {
+                showToast('Lokalizace selhala', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
+            }
+        } catch (error) {
+            showToast('Chyba: ' + error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
+        }
+        return;
+    }
+
+    // Generate AI button
+    if (btn.classList.contains('btn-generate')) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat status-processing me-1"></i>Generuji...';
+
+        try {
+            const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/generate`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                if (data.empty) {
+                    updatePhotoInUI(filename, { ai_status: 'done', ai_empty_response: true });
+                    showToast('AI nerozpoznalo obsah fotky', 'warning');
+                } else {
+                    updatePhotoInUI(filename, {
+                        description: data.description,
+                        ai_status: 'done',
+                        ai_empty_response: false
+                    });
+                    showToast('Popisek vygenerovan');
+                }
+            } else {
+                showToast('Generovani selhalo', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate AI';
+            }
+        } catch (error) {
+            showToast('Chyba: ' + error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate AI';
+        }
+        return;
+    }
+
+    // Save button
+    if (btn.classList.contains('btn-save')) {
+        const gpsInput = document.getElementById(`gps-${filename}`);
+        const descInput = document.getElementById(`desc-${filename}`);
+
+        const payload = {
+            description: descInput.value
+        };
+
+        // Parse GPS if provided
+        const gpsValue = gpsInput.value.trim();
+        if (gpsValue) {
+            const parts = gpsValue.split(',').map(s => parseFloat(s.trim()));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                payload.gps = { lat: parts[0], lng: parts[1] };
+            }
+        }
+
+        btn.disabled = true;
+        try {
+            const response = await fetch(`/api/photos/${encodeURIComponent(filename)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                showToast('Ulozeno do EXIF');
+                // Don't update UI - keep the form values as user entered them
+            } else {
+                const error = await response.json();
+                showToast('Chyba: ' + error.detail, 'error');
+            }
+        } catch (error) {
+            showToast('Chyba: ' + error.message, 'error');
+        }
+
+        btn.disabled = false;
+        return;
+    }
+
+    // Map button
+    if (btn.classList.contains('map-btn')) {
+        openMapModal(filename);
+        return;
+    }
+});
+
+// Event delegation for checkboxes
+document.getElementById('photosList').addEventListener('change', (e) => {
+    if (e.target.classList.contains('photo-select')) {
+        const filename = e.target.dataset.filename;
+        if (e.target.checked) {
+            selectedPhotos.add(filename);
+        } else {
+            selectedPhotos.delete(filename);
+        }
+        updateProcessSelectedButton();
+        updateSelectAllState();
+    }
+});
+
+// Select all checkbox
+document.getElementById('selectAll').addEventListener('change', (e) => {
+    const isChecked = e.target.checked;
+    document.querySelectorAll('.photo-select').forEach(cb => {
+        cb.checked = isChecked;
+        if (isChecked) {
+            selectedPhotos.add(cb.dataset.filename);
+        } else {
+            selectedPhotos.delete(cb.dataset.filename);
+        }
+    });
+    updateProcessSelectedButton();
+});
+
+function updateSelectAllState() {
+    const allCheckboxes = document.querySelectorAll('.photo-select');
+    const checkedCount = document.querySelectorAll('.photo-select:checked').length;
+    const selectAllCb = document.getElementById('selectAll');
+
+    if (checkedCount === 0) {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = false;
+    } else if (checkedCount === allCheckboxes.length) {
+        selectAllCb.checked = true;
+        selectAllCb.indeterminate = false;
+    } else {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = true;
+    }
+}
+
+function updateProcessSelectedButton() {
+    document.getElementById('btnProcessSelected').disabled = selectedPhotos.size === 0;
+}
+
+// Filter and sort
+document.querySelectorAll('input[name="filter"], input[name="sort"]').forEach(input => {
+    input.addEventListener('change', loadPhotos);
+});
+
+// Map modal
+function openMapModal(filename) {
+    currentMapPhotoFilename = filename;
+    const photo = photos.find(p => p.filename === filename);
+
+    const modal = new bootstrap.Modal(document.getElementById('mapModal'));
+    modal.show();
+
+    // Initialize map after modal is shown
+    document.getElementById('mapModal').addEventListener('shown.bs.modal', function initMap() {
+        if (!map) {
+            map = L.map('map').setView([50.0755, 14.4378], 10);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            map.on('click', (e) => {
+                setMapMarker(e.latlng.lat, e.latlng.lng);
+            });
+        }
+
+        // Set initial view based on photo GPS
+        if (photo && photo.gps) {
+            map.setView([photo.gps.lat, photo.gps.lng], 15);
+            setMapMarker(photo.gps.lat, photo.gps.lng);
+        } else {
+            map.setView([50.0755, 14.4378], 5);
+            if (mapMarker) {
+                map.removeLayer(mapMarker);
+                mapMarker = null;
+            }
+            mapSelectedCoords = null;
+        }
+
+        setTimeout(() => map.invalidateSize(), 100);
+        this.removeEventListener('shown.bs.modal', initMap);
+    }, { once: true });
+}
+
+function setMapMarker(lat, lng) {
+    if (mapMarker) {
+        mapMarker.setLatLng([lat, lng]);
+    } else {
+        mapMarker = L.marker([lat, lng]).addTo(map);
+    }
+    mapSelectedCoords = { lat, lng };
+}
+
+// Map search
+let searchTimeout;
+document.getElementById('mapSearch').addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+
+    if (query.length < 2) {
+        document.getElementById('searchResults').classList.add('d-none');
+        return;
+    }
+
+    searchTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch(`/api/geocode/search?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
+
+            const resultsEl = document.getElementById('searchResults');
+            if (data.results.length === 0) {
+                resultsEl.classList.add('d-none');
+                return;
+            }
+
+            resultsEl.innerHTML = data.results.map(r => `
+                <div class="search-result-item" data-lat="${r.lat}" data-lng="${r.lng}">
+                    ${r.display_name}
+                </div>
+            `).join('');
+            resultsEl.classList.remove('d-none');
+
+            resultsEl.querySelectorAll('.search-result-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const lat = parseFloat(item.dataset.lat);
+                    const lng = parseFloat(item.dataset.lng);
+                    map.setView([lat, lng], 15);
+                    setMapMarker(lat, lng);
+                    resultsEl.classList.add('d-none');
+                    document.getElementById('mapSearch').value = '';
+                });
+            });
+        } catch (error) {
+            console.error('Search failed:', error);
+        }
+    }, 300);
+});
+
+// Confirm location button
+document.getElementById('btnConfirmLocation').addEventListener('click', () => {
+    if (!mapSelectedCoords || !currentMapPhotoFilename) return;
+
+    const gpsInput = document.getElementById(`gps-${currentMapPhotoFilename}`);
+    if (gpsInput) {
+        gpsInput.value = `${mapSelectedCoords.lat.toFixed(6)}, ${mapSelectedCoords.lng.toFixed(6)}`;
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById('mapModal')).hide();
+    showToast('GPS aktualizovano (nezapomonte ulozit)');
+});
+
+// Batch processing - Popisky
+document.getElementById('btnDescribeAll').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await startBatch(null, 'describe');
+});
+
+document.getElementById('btnDescribeSelected').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (selectedPhotos.size === 0) {
+        showToast('Nejsou vybrány žádné fotky', 'warning');
+        return;
+    }
+    await startBatch(Array.from(selectedPhotos), 'describe');
+});
+
+// Batch processing - Lokalizace
+document.getElementById('btnLocateAll').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await startBatch(null, 'locate');
+});
+
+document.getElementById('btnLocateSelected').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (selectedPhotos.size === 0) {
+        showToast('Nejsou vybrány žádné fotky', 'warning');
+        return;
+    }
+    await startBatch(Array.from(selectedPhotos), 'locate');
+});
+
+// Save all
+document.getElementById('btnSaveAll').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await savePhotos(null);
+});
+
+document.getElementById('btnSaveSelected').addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (selectedPhotos.size === 0) {
+        showToast('Nejsou vybrány žádné fotky', 'warning');
+        return;
+    }
+    await savePhotos(Array.from(selectedPhotos));
+});
+
+async function savePhotos(photosList) {
+    try {
+        const response = await fetch('/api/photos/save-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photos: photosList })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Uloženo ${data.saved} z ${data.total} fotek do EXIF`);
+            if (data.errors && data.errors.length > 0) {
+                console.error('Save errors:', data.errors);
+            }
+            await loadPhotos();
+        } else {
+            showToast('Ukládání selhalo', 'error');
+        }
+    } catch (error) {
+        showToast('Chyba: ' + error.message, 'error');
+    }
+}
+
+document.getElementById('btnStop').addEventListener('click', async () => {
+    try {
+        await fetch('/api/batch/stop', { method: 'POST' });
+        showToast('Zastavuji po dokončení aktuální fotky...');
+    } catch (error) {
+        showToast('Chyba: ' + error.message, 'error');
+    }
+});
+
+async function startBatch(photosList, operation = 'describe') {
+    try {
+        const response = await fetch('/api/batch/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photos: photosList, operation: operation })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            showToast(error.detail, 'error');
+            return;
+        }
+
+        document.getElementById('btnDescribeDropdown').classList.add('d-none');
+        document.getElementById('btnLocateDropdown').classList.add('d-none');
+        document.getElementById('btnSaveDropdown').classList.add('d-none');
+        document.getElementById('btnStop').classList.remove('d-none');
+        document.getElementById('batchStatus').classList.add('active');
+
+        pollBatchStatus();
+    } catch (error) {
+        showToast('Chyba: ' + error.message, 'error');
+    }
+}
+
+async function pollBatchStatus() {
+    try {
+        const response = await fetch('/api/batch/status');
+        const status = await response.json();
+
+        const opLabel = status.operation === 'locate' ? 'Lokalizace' : 'Popisky';
+        document.getElementById('batchStatusText').textContent =
+            `${opLabel}: ${status.completed_count} dokončeno, ${status.queue_count} ve frontě`;
+
+        if (status.is_running) {
+            // Refresh photos to show current status
+            await loadPhotos();
+            setTimeout(pollBatchStatus, 1000);
+        } else {
+            // Batch finished
+            document.getElementById('btnDescribeDropdown').classList.remove('d-none');
+            document.getElementById('btnLocateDropdown').classList.remove('d-none');
+            document.getElementById('btnSaveDropdown').classList.remove('d-none');
+            document.getElementById('btnStop').classList.add('d-none');
+            document.getElementById('batchStatus').classList.remove('active');
+            showToast('Dávkové zpracování dokončeno');
+            await loadPhotos();
+        }
+    } catch (error) {
+        console.error('Poll error:', error);
+    }
+}
+
+// --- Log Panel ---
+let logEventSource = null;
+
+function formatLogTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function renderLogEntry(entry) {
+    const time = formatLogTime(entry.timestamp);
+    const levelClass = `log-${entry.level}`;
+
+    let dataHtml = '';
+    if (entry.data) {
+        const hasLongData = entry.data.prompt || entry.data.response;
+        if (hasLongData) {
+            const dataId = 'data-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            const content = entry.data.prompt || entry.data.response || '';
+            dataHtml = `
+                <span class="log-toggle-data" onclick="toggleLogData('${dataId}')">[zobrazit detail]</span>
+                <div class="log-data d-none" id="${dataId}">${escapeHtml(content)}</div>
+            `;
+        }
+    }
+
+    return `
+        <div class="log-entry ${levelClass}">
+            <span class="log-time">${time}</span>
+            <span>${escapeHtml(entry.message)}</span>
+            ${dataHtml}
+        </div>
+    `;
+}
+
+function toggleLogData(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.toggle('d-none');
+    }
+}
+
+function addLogEntry(entry) {
+    const content = document.getElementById('logContent');
+    content.insertAdjacentHTML('beforeend', renderLogEntry(entry));
+    // Auto-scroll to bottom
+    content.scrollTop = content.scrollHeight;
+}
+
+function connectToLogStream() {
+    if (logEventSource) {
+        logEventSource.close();
+    }
+
+    const content = document.getElementById('logContent');
+    content.innerHTML = '<div class="log-entry log-info">Připojuji se k logu...</div>';
+
+    logEventSource = new EventSource('/api/logs/stream');
+
+    logEventSource.onopen = () => {
+        content.innerHTML = '';
+    };
+
+    logEventSource.onmessage = (event) => {
+        try {
+            const entry = JSON.parse(event.data);
+            addLogEntry(entry);
+        } catch (e) {
+            console.error('Failed to parse log entry:', e);
+        }
+    };
+
+    logEventSource.onerror = () => {
+        content.insertAdjacentHTML('beforeend',
+            '<div class="log-entry log-error">Spojení přerušeno. Zkouším znovu...</div>');
+        setTimeout(connectToLogStream, 3000);
+    };
+}
+
+function toggleLogPanel() {
+    const panel = document.getElementById('logPanel');
+    const isHidden = panel.classList.contains('d-none');
+
+    if (isHidden) {
+        panel.classList.remove('d-none');
+        document.body.classList.add('log-open');
+        connectToLogStream();
+    } else {
+        panel.classList.add('d-none');
+        document.body.classList.remove('log-open');
+        if (logEventSource) {
+            logEventSource.close();
+            logEventSource = null;
+        }
+    }
+}
+
+// Log panel buttons
+document.getElementById('btnToggleLog').addEventListener('click', toggleLogPanel);
+document.getElementById('btnCloseLog').addEventListener('click', toggleLogPanel);
+document.getElementById('btnClearLog').addEventListener('click', async () => {
+    await fetch('/api/logs', { method: 'DELETE' });
+    document.getElementById('logContent').innerHTML =
+        '<div class="log-entry log-info">Log vymazán</div>';
+});
+
+// Initial load
+loadPhotos();
+</script>
+{% endblock %}

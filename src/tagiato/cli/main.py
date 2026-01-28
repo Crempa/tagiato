@@ -8,6 +8,7 @@ from tagiato.cli.commands.apply import apply
 from tagiato.cli.commands.export import export
 from tagiato.cli.commands.status import status
 from tagiato.cli.commands.reset import reset
+from tagiato.cli.commands.serve import serve
 
 app = typer.Typer(
     name="tagiato",
@@ -43,6 +44,7 @@ app.command(name="apply")(apply)
 app.command(name="export")(export)
 app.command(name="status")(status)
 app.command(name="reset")(reset)
+app.command(name="serve")(serve)
 
 
 if __name__ == "__main__":
