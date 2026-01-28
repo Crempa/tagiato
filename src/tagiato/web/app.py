@@ -21,9 +21,10 @@ from tagiato.web.routes import router
 def create_app(
     photos_dir: Path,
     timeline_path: Optional[Path] = None,
-    model: str = "sonnet",
     describe_provider: str = "claude",
+    describe_model: str = "sonnet",
     locate_provider: str = "claude",
+    locate_model: str = "sonnet",
 ) -> FastAPI:
     """Create and configure FastAPI app."""
 
@@ -44,9 +45,9 @@ def create_app(
 
     # Provider settings
     app_state.describe_provider = describe_provider
-    app_state.describe_model = model
+    app_state.describe_model = describe_model
     app_state.locate_provider = locate_provider
-    app_state.locate_model = model
+    app_state.locate_model = locate_model
 
     # Templates
     templates_dir = Path(__file__).parent / "templates"

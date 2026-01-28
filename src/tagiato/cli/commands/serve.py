@@ -29,21 +29,25 @@ def serve(
         dir_okay=False,
         resolve_path=True,
     ),
-    model: str = typer.Option(
-        "sonnet",
-        "--model",
-        "-m",
-        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini, o3 pro OpenAI Codex)",
-    ),
     describe_provider: str = typer.Option(
         "claude",
         "--describe-provider",
         help="Provider pro generování popisků (claude/gemini/openai)",
     ),
+    describe_model: str = typer.Option(
+        "sonnet",
+        "--describe-model",
+        help="Model pro popisky (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
+    ),
     locate_provider: str = typer.Option(
         "claude",
         "--locate-provider",
         help="Provider pro lokalizaci (claude/gemini/openai)",
+    ),
+    locate_model: str = typer.Option(
+        "sonnet",
+        "--locate-model",
+        help="Model pro lokalizaci (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
     ),
     port: int = typer.Option(
         8000,
@@ -80,8 +84,8 @@ def serve(
     console.print(f"  Složka: {photos_dir}")
     if timeline:
         console.print(f"  Timeline: {timeline}")
-    console.print(f"  Popisky: {describe_provider} ({model})")
-    console.print(f"  Lokalizace: {locate_provider} ({model})")
+    console.print(f"  Popisky: {describe_provider}/{describe_model}")
+    console.print(f"  Lokalizace: {locate_provider}/{locate_model}")
     console.print(f"  Port: {port}")
     console.print()
 
@@ -89,9 +93,10 @@ def serve(
     app = create_app(
         photos_dir=photos_dir,
         timeline_path=timeline,
-        model=model,
         describe_provider=describe_provider,
+        describe_model=describe_model,
         locate_provider=locate_provider,
+        locate_model=locate_model,
     )
 
     # Open browser

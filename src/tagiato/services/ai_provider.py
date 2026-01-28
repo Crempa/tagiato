@@ -289,7 +289,7 @@ class ClaudeProvider(AIProvider):
 class GeminiProvider(AIProvider):
     """Google Gemini CLI provider."""
 
-    def __init__(self, model: str = "gemini-2.0-flash"):
+    def __init__(self, model: str = "flash"):
         self.model = model
 
     @property
@@ -557,7 +557,7 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
 
     Args:
         provider_name: "claude", "gemini" nebo "openai"
-        model: Volitelný model (default: sonnet pro Claude, gemini-2.0-flash pro Gemini, o3 pro OpenAI)
+        model: Volitelný model (default: sonnet pro Claude, flash pro Gemini, o3 pro OpenAI)
 
     Returns:
         Instance AIProvider
@@ -568,7 +568,7 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
     if provider_name == "claude":
         return ClaudeProvider(model=model or "sonnet")
     elif provider_name == "gemini":
-        return GeminiProvider(model=model or "gemini-2.0-flash")
+        return GeminiProvider(model=model or "flash")
     elif provider_name == "openai":
         return OpenAIProvider(model=model or "o3")
     else:

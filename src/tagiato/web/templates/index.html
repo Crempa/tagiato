@@ -931,17 +931,34 @@ document.getElementById('btnClearLog').addEventListener('click', async () => {
 });
 
 // --- Provider Settings ---
-const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku'];
-const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
-const OPENAI_MODELS = ['o3', 'o4-mini', 'gpt-4.1'];
+const PROVIDER_MODELS = {
+    claude: [
+        { value: 'sonnet', label: 'Sonnet (default)' },
+        { value: 'opus', label: 'Opus (reasoning)' },
+        { value: 'haiku', label: 'Haiku (fast)' },
+        { value: 'sonnet[1m]', label: 'Sonnet 1M context' },
+    ],
+    gemini: [
+        { value: 'flash', label: 'Flash (default)' },
+        { value: 'pro', label: 'Pro' },
+        { value: 'ultra', label: 'Ultra' },
+    ],
+    openai: [
+        { value: 'o3', label: 'o3 (reasoning)' },
+        { value: 'o4-mini', label: 'o4-mini (fast)' },
+        { value: 'gpt-5.2', label: 'GPT-5.2' },
+        { value: 'gpt-5.2-pro', label: 'GPT-5.2 Pro' },
+        { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+        { value: 'codex-mini-latest', label: 'Codex Mini' },
+    ],
+};
 
 function updateModelOptions(providerSelect, modelSelect, currentModel) {
     const provider = providerSelect.value;
-    const models = provider === 'claude' ? CLAUDE_MODELS :
-                   provider === 'gemini' ? GEMINI_MODELS : OPENAI_MODELS;
+    const models = PROVIDER_MODELS[provider] || [];
 
     modelSelect.innerHTML = models.map(m =>
-        `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`
+        `<option value="${m.value}" ${m.value === currentModel ? 'selected' : ''}>${m.label}</option>`
     ).join('');
 }
 
@@ -977,11 +994,13 @@ function updateProviderSummary(settings) {
 
 // Update model options when provider changes
 document.getElementById('describeProvider').addEventListener('change', (e) => {
-    updateModelOptions(e.target, document.getElementById('describeModel'), CLAUDE_MODELS[0]);
+    const defaultModel = PROVIDER_MODELS[e.target.value]?.[0]?.value || 'sonnet';
+    updateModelOptions(e.target, document.getElementById('describeModel'), defaultModel);
 });
 
 document.getElementById('locateProvider').addEventListener('change', (e) => {
-    updateModelOptions(e.target, document.getElementById('locateModel'), CLAUDE_MODELS[0]);
+    const defaultModel = PROVIDER_MODELS[e.target.value]?.[0]?.value || 'sonnet';
+    updateModelOptions(e.target, document.getElementById('locateModel'), defaultModel);
 });
 
 // Save settings
