@@ -8,7 +8,7 @@
                 <h1 class="h4 mb-0">
                     <i class="bi bi-images me-2"></i>{{ folder_name }}
                 </h1>
-                <small class="text-muted">{{ photos_count }} fotek | model: {{ model }}</small>
+                <small class="text-muted">{{ photos_count }} fotek</small>
             </div>
             <div class="col-auto ms-auto d-flex gap-2 align-items-center flex-wrap">
                 <!-- Batch controls -->
@@ -59,6 +59,11 @@
                         <span id="batchStatusText">Zpracovávám...</span>
                     </span>
                 </div>
+
+                <!-- Provider settings -->
+                <button class="btn btn-outline-secondary btn-sm" id="btnSettings" title="Nastavení AI providerů" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class="bi bi-gear me-1"></i><span id="providerSummary">{{ describe_provider }}/{{ locate_provider }}</span>
+                </button>
 
                 <!-- Log toggle -->
                 <button class="btn btn-outline-secondary btn-sm" id="btnToggleLog" title="Zobrazit/skrýt log">
@@ -129,6 +134,60 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrusit</button>
                 <button type="button" class="btn btn-primary" id="btnConfirmLocation">Potvrdit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Nastavení AI providerů</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Generování popisků</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <select class="form-select" id="describeProvider">
+                                <option value="claude">Claude</option>
+                                <option value="gemini">Gemini</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <select class="form-select" id="describeModel">
+                                <!-- Filled by JS based on provider -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Lokalizace</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <select class="form-select" id="locateProvider">
+                                <option value="claude">Claude</option>
+                                <option value="gemini">Gemini</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <select class="form-select" id="locateModel">
+                                <!-- Filled by JS based on provider -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Pro použití Gemini musí být nainstalováno CLI: <code>gemini</code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zrušit</button>
+                <button type="button" class="btn btn-primary" id="btnSaveSettings">Uložit</button>
             </div>
         </div>
     </div>
@@ -865,6 +924,90 @@ document.getElementById('btnClearLog').addEventListener('click', async () => {
     document.getElementById('logContent').innerHTML =
         '<div class="log-entry log-info">Log vymazán</div>';
 });
+
+// --- Provider Settings ---
+const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku'];
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+
+function updateModelOptions(providerSelect, modelSelect, currentModel) {
+    const provider = providerSelect.value;
+    const models = provider === 'claude' ? CLAUDE_MODELS : GEMINI_MODELS;
+
+    modelSelect.innerHTML = models.map(m =>
+        `<option value="${m}" ${m === currentModel ? 'selected' : ''}>${m}</option>`
+    ).join('');
+}
+
+async function loadProviderSettings() {
+    try {
+        const response = await fetch('/api/settings/providers');
+        const settings = await response.json();
+
+        document.getElementById('describeProvider').value = settings.describe_provider;
+        document.getElementById('locateProvider').value = settings.locate_provider;
+
+        updateModelOptions(
+            document.getElementById('describeProvider'),
+            document.getElementById('describeModel'),
+            settings.describe_model
+        );
+        updateModelOptions(
+            document.getElementById('locateProvider'),
+            document.getElementById('locateModel'),
+            settings.locate_model
+        );
+
+        updateProviderSummary(settings);
+    } catch (error) {
+        console.error('Failed to load provider settings:', error);
+    }
+}
+
+function updateProviderSummary(settings) {
+    const summary = document.getElementById('providerSummary');
+    summary.textContent = `${settings.describe_provider}/${settings.locate_provider}`;
+}
+
+// Update model options when provider changes
+document.getElementById('describeProvider').addEventListener('change', (e) => {
+    updateModelOptions(e.target, document.getElementById('describeModel'), CLAUDE_MODELS[0]);
+});
+
+document.getElementById('locateProvider').addEventListener('change', (e) => {
+    updateModelOptions(e.target, document.getElementById('locateModel'), CLAUDE_MODELS[0]);
+});
+
+// Save settings
+document.getElementById('btnSaveSettings').addEventListener('click', async () => {
+    const settings = {
+        describe_provider: document.getElementById('describeProvider').value,
+        describe_model: document.getElementById('describeModel').value,
+        locate_provider: document.getElementById('locateProvider').value,
+        locate_model: document.getElementById('locateModel').value,
+    };
+
+    try {
+        const response = await fetch('/api/settings/providers', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+
+        if (response.ok) {
+            updateProviderSummary(settings);
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            showToast('Nastavení uloženo');
+        } else {
+            const error = await response.json();
+            showToast('Chyba: ' + error.detail, 'error');
+        }
+    } catch (error) {
+        showToast('Chyba: ' + error.message, 'error');
+    }
+});
+
+// Load settings when modal opens
+document.getElementById('settingsModal').addEventListener('show.bs.modal', loadProviderSettings);
 
 // Initial load
 loadPhotos();

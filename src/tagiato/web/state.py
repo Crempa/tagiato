@@ -179,8 +179,13 @@ class AppState:
 
         # Config
         self.photos_dir: Optional[Path] = None
-        self.model: str = "sonnet"
         self.thumbnails_dir: Optional[Path] = None
+
+        # AI provider settings
+        self.describe_provider: str = "claude"  # "claude" or "gemini"
+        self.describe_model: str = "sonnet"
+        self.locate_provider: str = "claude"  # "claude" or "gemini"
+        self.locate_model: str = "sonnet"
 
     def get_photo(self, filename: str) -> Optional[PhotoState]:
         """Get photo by filename."""

@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 from tagiato.models.location import GPSCoordinates
-from tagiato.services.describer import ClaudeDescriber
+from tagiato.services.ai_provider import get_provider, get_available_providers
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.services.exif_writer import ExifWriter
 from tagiato.core.exceptions import ExifError
@@ -37,6 +37,56 @@ class BatchRequest(BaseModel):
     """Batch processing request."""
     photos: Optional[list[str]] = None  # None = all photos
     operation: str = "describe"  # "describe" or "locate"
+
+
+class ProviderSettings(BaseModel):
+    """AI provider settings."""
+    describe_provider: Optional[str] = None
+    describe_model: Optional[str] = None
+    locate_provider: Optional[str] = None
+    locate_model: Optional[str] = None
+
+
+# --- Provider settings endpoints ---
+
+@router.get("/api/settings/providers")
+async def get_provider_settings():
+    """Get current AI provider settings."""
+    return {
+        "describe_provider": app_state.describe_provider,
+        "describe_model": app_state.describe_model,
+        "locate_provider": app_state.locate_provider,
+        "locate_model": app_state.locate_model,
+        "available_providers": get_available_providers(),
+    }
+
+
+@router.put("/api/settings/providers")
+async def update_provider_settings(settings: ProviderSettings):
+    """Update AI provider settings."""
+    if settings.describe_provider is not None:
+        if settings.describe_provider not in ("claude", "gemini"):
+            raise HTTPException(status_code=400, detail="Invalid describe provider")
+        app_state.describe_provider = settings.describe_provider
+
+    if settings.describe_model is not None:
+        app_state.describe_model = settings.describe_model
+
+    if settings.locate_provider is not None:
+        if settings.locate_provider not in ("claude", "gemini"):
+            raise HTTPException(status_code=400, detail="Invalid locate provider")
+        app_state.locate_provider = settings.locate_provider
+
+    if settings.locate_model is not None:
+        app_state.locate_model = settings.locate_model
+
+    return {
+        "success": True,
+        "describe_provider": app_state.describe_provider,
+        "describe_model": app_state.describe_model,
+        "locate_provider": app_state.locate_provider,
+        "locate_model": app_state.locate_model,
+    }
 
 
 # --- Photo endpoints ---
@@ -109,8 +159,8 @@ async def generate_description(filename: str):
         if not photo.thumbnail_path:
             raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
 
-        describer = ClaudeDescriber(model=app_state.model)
-        result = describer.describe(
+        provider = get_provider(app_state.describe_provider, app_state.describe_model)
+        result = provider.describe(
             thumbnail_path=photo.thumbnail_path,
             place_name=photo.place_name,
             coords=photo.gps,
@@ -170,11 +220,9 @@ async def locate_photo(filename: str):
         if not photo.thumbnail_path:
             raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
 
-        describer = ClaudeDescriber(model=app_state.model)
-        result = describer.locate(
+        provider = get_provider(app_state.locate_provider, app_state.locate_model)
+        result = provider.locate(
             thumbnail_path=photo.thumbnail_path,
-            place_name=photo.place_name,
-            coords=photo.gps,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
         )
 
@@ -287,15 +335,12 @@ def _run_batch_processing():
                     app_state.update_photo(filename, thumbnail_path=photo.thumbnail_path)
 
             if photo.thumbnail_path:
-                describer = ClaudeDescriber(model=app_state.model)
-
                 if operation == "locate":
                     # Batch locate
+                    provider = get_provider(app_state.locate_provider, app_state.locate_model)
                     app_state.update_photo(filename, locate_status=ProcessingStatus.PROCESSING)
-                    result = describer.locate(
+                    result = provider.locate(
                         thumbnail_path=photo.thumbnail_path,
-                        place_name=photo.place_name,
-                        coords=photo.gps,
                         timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
                     )
 
@@ -319,8 +364,9 @@ def _run_batch_processing():
                 else:
                     # Batch describe (default)
                     if not photo.description and photo.ai_status != ProcessingStatus.DONE:
+                        provider = get_provider(app_state.describe_provider, app_state.describe_model)
                         app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
-                        result = describer.describe(
+                        result = provider.describe(
                             thumbnail_path=photo.thumbnail_path,
                             place_name=photo.place_name,
                             coords=photo.gps,

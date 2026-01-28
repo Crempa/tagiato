@@ -33,7 +33,17 @@ def serve(
         "sonnet",
         "--model",
         "-m",
-        help="Model pro Claude (sonnet/opus/haiku)",
+        help="Výchozí model (sonnet/opus/haiku pro Claude, gemini-2.0-flash pro Gemini)",
+    ),
+    describe_provider: str = typer.Option(
+        "claude",
+        "--describe-provider",
+        help="Provider pro generování popisků (claude/gemini)",
+    ),
+    locate_provider: str = typer.Option(
+        "claude",
+        "--locate-provider",
+        help="Provider pro lokalizaci (claude/gemini)",
     ),
     port: int = typer.Option(
         8000,
@@ -70,7 +80,8 @@ def serve(
     console.print(f"  Složka: {photos_dir}")
     if timeline:
         console.print(f"  Timeline: {timeline}")
-    console.print(f"  Model: {model}")
+    console.print(f"  Popisky: {describe_provider} ({model})")
+    console.print(f"  Lokalizace: {locate_provider} ({model})")
     console.print(f"  Port: {port}")
     console.print()
 
@@ -79,6 +90,8 @@ def serve(
         photos_dir=photos_dir,
         timeline_path=timeline,
         model=model,
+        describe_provider=describe_provider,
+        locate_provider=locate_provider,
     )
 
     # Open browser

@@ -22,6 +22,8 @@ def create_app(
     photos_dir: Path,
     timeline_path: Optional[Path] = None,
     model: str = "sonnet",
+    describe_provider: str = "claude",
+    locate_provider: str = "claude",
 ) -> FastAPI:
     """Create and configure FastAPI app."""
 
@@ -38,8 +40,13 @@ def create_app(
 
     # Store config in app state
     app_state.photos_dir = photos_dir
-    app_state.model = model
     app_state.thumbnails_dir = thumbnails_dir
+
+    # Provider settings
+    app_state.describe_provider = describe_provider
+    app_state.describe_model = model
+    app_state.locate_provider = locate_provider
+    app_state.locate_model = model
 
     # Templates
     templates_dir = Path(__file__).parent / "templates"
@@ -60,7 +67,10 @@ def create_app(
                 "request": request,
                 "folder_name": photos_dir.name,
                 "photos_count": len(app_state.photos),
-                "model": model,
+                "describe_provider": app_state.describe_provider,
+                "describe_model": app_state.describe_model,
+                "locate_provider": app_state.locate_provider,
+                "locate_model": app_state.locate_model,
             }
         )
 
