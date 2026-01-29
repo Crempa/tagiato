@@ -3,7 +3,6 @@
 import typer
 
 from tagiato import __version__
-from tagiato.cli.commands.enrich import enrich
 from tagiato.cli.commands.apply import apply
 from tagiato.cli.commands.export import export
 from tagiato.cli.commands.status import status
@@ -39,7 +38,6 @@ def main(
 
 
 # Registrovat příkazy
-app.command(name="enrich")(enrich)
 app.command(name="apply")(apply)
 app.command(name="export")(export)
 app.command(name="status")(status)

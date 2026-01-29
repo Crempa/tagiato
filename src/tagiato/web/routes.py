@@ -162,11 +162,19 @@ async def get_thumbnail(filename: str):
 
 
 @router.post("/api/photos/{filename}/generate")
-async def generate_description(filename: str):
+async def generate_description(filename: str, request: Request):
     """Generate AI description for a photo."""
     photo = app_state.get_photo(filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+
+    # Parse optional user_hint from request body
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    user_hint = body.get("user_hint", "")
 
     app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
 
@@ -188,6 +196,7 @@ async def generate_description(filename: str):
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
             custom_prompt=app_state.describe_prompt,
             location_name=photo.location_name or None,
+            user_hint=user_hint,
         )
 
         if result.description:
@@ -199,13 +208,6 @@ async def generate_description(filename: str):
                 ai_empty_response=False,
                 is_dirty=True,
             )
-            # Update GPS if refined
-            if result.refined_gps:
-                app_state.update_photo(
-                    filename,
-                    gps=result.refined_gps,
-                    gps_source="ai",
-                )
             return {"success": True, "description": result.description}
         else:
             app_state.update_photo(
@@ -225,11 +227,19 @@ async def generate_description(filename: str):
 
 
 @router.post("/api/photos/{filename}/locate")
-async def locate_photo(filename: str):
+async def locate_photo(filename: str, request: Request):
     """Use AI to determine precise GPS location of a photo."""
     photo = app_state.get_photo(filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+
+    # Parse optional user_hint from request body
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    user_hint = body.get("user_hint", "")
 
     app_state.update_photo(filename, locate_status=ProcessingStatus.PROCESSING)
 
@@ -248,6 +258,7 @@ async def locate_photo(filename: str):
             thumbnail_path=photo.thumbnail_path,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
             custom_prompt=app_state.locate_prompt,
+            user_hint=user_hint,
         )
 
         if result.gps:
@@ -291,6 +302,60 @@ async def locate_photo(filename: str):
             locate_error=str(e),
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/photos/{filename}/prompt-preview")
+async def get_prompt_preview(filename: str, request: Request):
+    """Get the actual prompt that would be sent to AI (with all placeholders filled)."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    prompt_type = body.get("type", "describe")  # "describe" or "locate"
+    user_hint = body.get("user_hint", "")
+
+    # Build context for describe prompt
+    if prompt_type == "describe":
+        context_lines = []
+        if photo.gps:
+            context_lines.append(f"- GPS: {photo.gps.latitude:.6f}, {photo.gps.longitude:.6f}")
+        if photo.location_name:
+            context_lines.append(f"- Lokalizované místo: {photo.location_name}")
+        if photo.place_name:
+            context_lines.append(f"- Místo (hrubý odhad): {photo.place_name}")
+        if photo.timestamp:
+            context_lines.append(f"- Datum: {photo.timestamp.strftime('%d. %m. %Y %H:%M')}")
+
+        user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
+
+        template = app_state.describe_prompt or DESCRIBE_PROMPT_TEMPLATE
+        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
+
+        prompt = template.format(
+            thumbnail_path=thumbnail_path,
+            context_lines="\n".join(context_lines) + "\n" if context_lines else "",
+            user_hint_line=user_hint_line,
+        )
+    else:
+        # Locate prompt
+        user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
+
+        template = app_state.locate_prompt or LOCATE_PROMPT_TEMPLATE
+        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
+
+        prompt = template.format(
+            thumbnail_path=thumbnail_path,
+            timestamp=photo.timestamp.strftime("%d. %m. %Y %H:%M") if photo.timestamp else "neznámé",
+            user_hint_line=user_hint_line,
+        )
+
+    return {"prompt": prompt, "type": prompt_type}
 
 
 @router.put("/api/photos/{filename}")
@@ -425,12 +490,6 @@ def _run_batch_processing():
                                 ai_status=ProcessingStatus.DONE,
                                 is_dirty=True,
                             )
-                            if result.refined_gps:
-                                app_state.update_photo(
-                                    filename,
-                                    gps=result.refined_gps,
-                                    gps_source="ai",
-                                )
                         else:
                             app_state.update_photo(
                                 filename,

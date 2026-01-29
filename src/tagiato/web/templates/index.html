@@ -305,6 +305,30 @@
     </div>
 </div>
 
+<!-- Prompt Preview Modal -->
+<div class="modal fade" id="promptPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-code me-2"></i>
+                    <span id="promptPreviewTitle">Prompt</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre class="prompt-preview-content" id="promptPreviewContent" style="white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; background: #f8f9fa; padding: 1rem; border-radius: 0.25rem; font-size: 0.85rem;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="btnCopyPrompt">
+                    <i class="bi bi-clipboard me-1"></i>Kopírovat
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Zavřít</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Log Panel -->
 <div id="logPanel" class="log-panel d-none">
     <div class="log-header">
@@ -441,15 +465,44 @@ function renderPhotoCard(photo) {
                                   id="desc-${photo.filename}">${photo.description || ''}</textarea>
                     </div>
 
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Nápověda pro lokalizaci</label>
+                            <input type="text" class="form-control form-control-sm locate-hint-input"
+                                   id="locate-hint-${photo.filename}"
+                                   placeholder="např. 'tohle je Karlův most'">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Nápověda pro popisek</label>
+                            <input type="text" class="form-control form-control-sm describe-hint-input"
+                                   id="describe-hint-${photo.filename}"
+                                   placeholder="např. 'fotka z naší svatby'">
+                        </div>
+                    </div>
+
                     <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-outline-secondary btn-sm btn-locate"
-                                data-filename="${photo.filename}">
-                            <i class="bi bi-geo-alt me-1"></i>Lokalizovat
-                        </button>
-                        <button class="btn btn-outline-primary btn-sm btn-generate"
-                                data-filename="${photo.filename}">
-                            <i class="bi bi-stars me-1"></i>Generate AI
-                        </button>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary btn-locate"
+                                    data-filename="${photo.filename}">
+                                <i class="bi bi-geo-alt me-1"></i>Lokalizovat
+                            </button>
+                            <button class="btn btn-outline-secondary btn-prompt-preview"
+                                    data-filename="${photo.filename}" data-type="locate"
+                                    title="Zobrazit prompt">
+                                <i class="bi bi-code"></i>
+                            </button>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary btn-generate"
+                                    data-filename="${photo.filename}">
+                                <i class="bi bi-stars me-1"></i>Generate AI
+                            </button>
+                            <button class="btn btn-outline-primary btn-prompt-preview"
+                                    data-filename="${photo.filename}" data-type="describe"
+                                    title="Zobrazit prompt">
+                                <i class="bi bi-code"></i>
+                            </button>
+                        </div>
                         <button class="btn btn-success btn-sm btn-save"
                                 data-filename="${photo.filename}">
                             <i class="bi bi-check-lg me-1"></i>Ulozit
@@ -511,8 +564,11 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
         btn.innerHTML = '<i class="bi bi-arrow-repeat status-processing me-1"></i>Hledam...';
 
         try {
+            const locateHint = document.getElementById(`locate-hint-${filename}`)?.value || '';
             const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/locate`, {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_hint: locateHint })
             });
             const data = await response.json();
 
@@ -578,8 +634,11 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
         btn.innerHTML = '<i class="bi bi-arrow-repeat status-processing me-1"></i>Generuji...';
 
         try {
+            const describeHint = document.getElementById(`describe-hint-${filename}`)?.value || '';
             const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/generate`, {
-                method: 'POST'
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_hint: describeHint })
             });
             const data = await response.json();
 
@@ -654,6 +713,13 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
     // Map button
     if (btn.classList.contains('map-btn')) {
         openMapModal(filename);
+        return;
+    }
+
+    // Prompt preview button
+    if (btn.classList.contains('btn-prompt-preview')) {
+        const promptType = btn.dataset.type;
+        showPromptPreview(filename, promptType);
         return;
     }
 });
@@ -1466,6 +1532,55 @@ function updatePromptsButtonState(batchRunning) {
     btn.disabled = batchRunning;
     btn.title = batchRunning ? 'Nelze měnit během zpracování' : 'Upravit AI prompty';
 }
+
+// --- Prompt Preview ---
+async function showPromptPreview(filename, promptType) {
+    // Get user hint based on prompt type
+    let userHint = '';
+    if (promptType === 'locate') {
+        userHint = document.getElementById(`locate-hint-${filename}`)?.value || '';
+    } else {
+        userHint = document.getElementById(`describe-hint-${filename}`)?.value || '';
+    }
+
+    try {
+        const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/prompt-preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: promptType, user_hint: userHint })
+        });
+
+        if (!response.ok) {
+            throw new Error('Nepodařilo se načíst prompt');
+        }
+
+        const data = await response.json();
+
+        // Update modal title
+        const title = promptType === 'locate' ? 'Prompt pro lokalizaci' : 'Prompt pro popisek';
+        document.getElementById('promptPreviewTitle').textContent = title;
+
+        // Update modal content
+        document.getElementById('promptPreviewContent').textContent = data.prompt;
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('promptPreviewModal'));
+        modal.show();
+    } catch (error) {
+        showToast('Chyba: ' + error.message, 'error');
+    }
+}
+
+// Copy prompt to clipboard
+document.getElementById('btnCopyPrompt').addEventListener('click', async () => {
+    const content = document.getElementById('promptPreviewContent').textContent;
+    try {
+        await navigator.clipboard.writeText(content);
+        showToast('Prompt zkopírován do schránky');
+    } catch (error) {
+        showToast('Nepodařilo se zkopírovat', 'error');
+    }
+});
 
 // Initial load
 loadPhotos();

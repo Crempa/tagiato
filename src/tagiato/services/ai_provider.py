@@ -16,8 +16,6 @@ from tagiato.models.location import GPSCoordinates
 class DescriptionResult:
     """Výsledek generování popisku."""
     description: str
-    refined_gps: Optional[GPSCoordinates] = None
-    gps_confidence: str = "unchanged"
 
 
 @dataclass
@@ -35,6 +33,7 @@ LOCATE_PROMPT_TEMPLATE = """Jsi expert na geolokalizaci fotografií. Tvým úkol
 Vstupní data:
 - Cesta k náhledu: {thumbnail_path}
 - Datum pořízení: {timestamp}
+{user_hint_line}
 
 INSTRUKCE:
 1. Analyzuj fotku a pokus se identifikovat konkrétní místo (budovu, památku, ulici, park, atd.)
@@ -60,9 +59,7 @@ DESCRIBE_PROMPT_TEMPLATE = """Jsi stručný glosátor a cestovatel. Tvým úkole
 
 Vstupní data:
 - Cesta k náhledu: {thumbnail_path}
-{context_lines}
-INSTRUKCE PRO GPS:
-- Pokud bezpečně poznáš konkrétní památku/budovu, oprav GPS na její střed. Jinak nech null.
+{context_lines}{user_hint_line}
 
 INSTRUKCE PRO TEXT (POPISEK):
 Musíš dodržet tento striktní formát:
@@ -81,9 +78,6 @@ PŘÍKLADY VÝSTUPU (Takhle to má vypadat):
 
 VÝSTUP JSON:
 {{
-"refined_gps": {{"lat": float, "lng": float}} nebo null,
-"gps_confidence": "high" | "medium" | "low",
-"location_name_refined": "Název místa",
 "description": "Tvůj text..."
 }}
 """
@@ -112,6 +106,7 @@ class AIProvider(ABC):
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
+        user_hint: str = "",
     ) -> DescriptionResult:
         """Vygeneruje popisek pro fotku."""
         pass
@@ -122,6 +117,7 @@ class AIProvider(ABC):
         thumbnail_path: Path,
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        user_hint: str = "",
     ) -> LocationResult:
         """Určí GPS pozici fotky."""
         pass
@@ -207,6 +203,7 @@ class ClaudeProvider(AIProvider):
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
+        user_hint: str = "",
     ) -> DescriptionResult:
         log_call("ClaudeProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -221,10 +218,17 @@ class ClaudeProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_claude(prompt)
@@ -233,19 +237,7 @@ class ClaudeProvider(AIProvider):
 
         try:
             data = _parse_json_response(response)
-            refined_gps = None
-            if data.get("refined_gps"):
-                gps_data = data["refined_gps"]
-                refined_gps = GPSCoordinates(
-                    latitude=float(gps_data["lat"]),
-                    longitude=float(gps_data["lng"]),
-                )
-
-            result = DescriptionResult(
-                description=data.get("description", ""),
-                refined_gps=refined_gps,
-                gps_confidence=data.get("gps_confidence", "unchanged"),
-            )
+            result = DescriptionResult(description=data.get("description", ""))
             log_result("ClaudeProvider", "describe", f"description={len(result.description)} chars")
             return result
 
@@ -260,13 +252,21 @@ class ClaudeProvider(AIProvider):
         thumbnail_path: Path,
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        user_hint: str = "",
     ) -> LocationResult:
         log_call("ClaudeProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
+
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             timestamp=timestamp or "neznámé",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_claude(prompt)
@@ -345,6 +345,7 @@ class GeminiProvider(AIProvider):
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
+        user_hint: str = "",
     ) -> DescriptionResult:
         log_call("GeminiProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -359,10 +360,17 @@ class GeminiProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_gemini(prompt)
@@ -371,19 +379,7 @@ class GeminiProvider(AIProvider):
 
         try:
             data = _parse_json_response(response)
-            refined_gps = None
-            if data.get("refined_gps"):
-                gps_data = data["refined_gps"]
-                refined_gps = GPSCoordinates(
-                    latitude=float(gps_data["lat"]),
-                    longitude=float(gps_data["lng"]),
-                )
-
-            result = DescriptionResult(
-                description=data.get("description", ""),
-                refined_gps=refined_gps,
-                gps_confidence=data.get("gps_confidence", "unchanged"),
-            )
+            result = DescriptionResult(description=data.get("description", ""))
             log_result("GeminiProvider", "describe", f"description={len(result.description)} chars")
             return result
 
@@ -397,13 +393,21 @@ class GeminiProvider(AIProvider):
         thumbnail_path: Path,
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        user_hint: str = "",
     ) -> LocationResult:
         log_call("GeminiProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
+
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path=str(thumbnail_path.absolute()),
             timestamp=timestamp or "neznámé",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_gemini(prompt)
@@ -488,6 +492,7 @@ class OpenAIProvider(AIProvider):
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
+        user_hint: str = "",
     ) -> DescriptionResult:
         log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -502,10 +507,17 @@ class OpenAIProvider(AIProvider):
         if timestamp:
             context_lines.append(f"- Datum: {timestamp}")
 
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path="[obrázek přiložen přes --image]",
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_codex(prompt, thumbnail_path)
@@ -514,19 +526,7 @@ class OpenAIProvider(AIProvider):
 
         try:
             data = _parse_json_response(response)
-            refined_gps = None
-            if data.get("refined_gps"):
-                gps_data = data["refined_gps"]
-                refined_gps = GPSCoordinates(
-                    latitude=float(gps_data["lat"]),
-                    longitude=float(gps_data["lng"]),
-                )
-
-            result = DescriptionResult(
-                description=data.get("description", ""),
-                refined_gps=refined_gps,
-                gps_confidence=data.get("gps_confidence", "unchanged"),
-            )
+            result = DescriptionResult(description=data.get("description", ""))
             log_result("OpenAIProvider", "describe", f"description={len(result.description)} chars")
             return result
 
@@ -540,13 +540,21 @@ class OpenAIProvider(AIProvider):
         thumbnail_path: Path,
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        user_hint: str = "",
     ) -> LocationResult:
         log_call("OpenAIProvider", "locate", thumbnail=thumbnail_path.name, model=self.model)
+
+        # User hint line
+        if user_hint.strip():
+            user_hint_line = f"- Uživatel k tomu dodává: {user_hint}"
+        else:
+            user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
         prompt = template.format(
             thumbnail_path="[obrázek přiložen přes --image]",
             timestamp=timestamp or "neznámé",
+            user_hint_line=user_hint_line,
         )
 
         response = self._run_codex(prompt, thumbnail_path)

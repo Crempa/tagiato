@@ -5,7 +5,6 @@ from tagiato.services.timeline_loader import TimelineLoader
 from tagiato.services.location_matcher import LocationMatcher
 from tagiato.services.geocoder import Geocoder
 from tagiato.services.thumbnail import ThumbnailGenerator
-from tagiato.services.describer import ClaudeDescriber
 from tagiato.services.exif_writer import ExifWriter
 from tagiato.services.xmp_writer import XmpWriter
 from tagiato.services.md_parser import MdParser
@@ -16,7 +15,6 @@ __all__ = [
     "LocationMatcher",
     "Geocoder",
     "ThumbnailGenerator",
-    "ClaudeDescriber",
     "ExifWriter",
     "XmpWriter",
     "MdParser",
