@@ -13,6 +13,7 @@ from tagiato.models.location import GPSCoordinates
 from tagiato.services.ai_provider import get_provider, get_available_providers, DESCRIBE_PROMPT_TEMPLATE, LOCATE_PROMPT_TEMPLATE
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.services.exif_writer import ExifWriter
+from tagiato.services.xmp_writer import XmpWriter
 from tagiato.core.exceptions import ExifError
 from tagiato.web.state import app_state, ProcessingStatus, log_buffer
 
@@ -31,6 +32,7 @@ class PhotoUpdate(BaseModel):
     """Update photo data."""
     gps: Optional[GPSInput] = None
     description: Optional[str] = None
+    location_name: Optional[str] = None
 
 
 class BatchRequest(BaseModel):
@@ -185,6 +187,7 @@ async def generate_description(filename: str):
             coords=photo.gps,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
             custom_prompt=app_state.describe_prompt,
+            location_name=photo.location_name or None,
         )
 
         if result.description:
@@ -255,7 +258,7 @@ async def locate_photo(filename: str):
                 locate_status=ProcessingStatus.DONE,
                 locate_error=None,
                 locate_confidence=result.confidence,
-                locate_name=result.location_name,
+                location_name=result.location_name,
                 is_dirty=True,
             )
             return {
@@ -266,16 +269,18 @@ async def locate_photo(filename: str):
                 "reasoning": result.reasoning,
             }
         else:
+            # I bez GPS můžeme mít location_name
             app_state.update_photo(
                 filename,
                 locate_status=ProcessingStatus.DONE,
-                locate_confidence="low",
-                locate_name="",
+                locate_confidence=result.confidence,
+                location_name=result.location_name,
             )
             return {
                 "success": True,
                 "gps": None,
                 "confidence": result.confidence,
+                "location_name": result.location_name,
                 "reasoning": result.reasoning,
             }
 
@@ -304,20 +309,34 @@ async def update_photo(filename: str, data: PhotoUpdate):
     if data.description is not None:
         app_state.update_photo(filename, description=data.description, is_dirty=True)
 
+    # Update location_name if provided
+    if data.location_name is not None:
+        app_state.update_photo(filename, location_name=data.location_name, is_dirty=True)
+
     # Get updated photo
     photo = app_state.get_photo(filename)
 
-    # Write to EXIF
+    # Write to EXIF and XMP
     try:
-        writer = ExifWriter()
-        writer.write(
+        exif_writer = ExifWriter()
+        exif_writer.write(
             photo_path=photo.path,
             gps=photo.gps,
             description=photo.description if photo.description else None,
             skip_existing_gps=False,  # Always overwrite in serve mode
         )
+
+        # Write XMP sidecar with location_name
+        xmp_writer = XmpWriter()
+        xmp_writer.write(
+            photo_path=photo.path,
+            gps=photo.gps,
+            description=photo.description if photo.description else None,
+            location_name=photo.location_name if photo.location_name else None,
+        )
+
         app_state.update_photo(filename, is_dirty=False)
-        return {"success": True, "message": "Saved to EXIF"}
+        return {"success": True, "message": "Saved to EXIF/XMP"}
 
     except ExifError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -373,14 +392,16 @@ def _run_batch_processing():
                             gps_source="ai",
                             locate_status=ProcessingStatus.DONE,
                             locate_confidence=result.confidence,
-                            locate_name=result.location_name,
+                            location_name=result.location_name,
                             is_dirty=True,
                         )
                     else:
+                        # I bez GPS můžeme mít location_name
                         app_state.update_photo(
                             filename,
                             locate_status=ProcessingStatus.DONE,
-                            locate_confidence="low",
+                            locate_confidence=result.confidence,
+                            location_name=result.location_name,
                         )
 
                 else:
@@ -394,6 +415,7 @@ def _run_batch_processing():
                             coords=photo.gps,
                             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
                             custom_prompt=app_state.describe_prompt,
+                            location_name=photo.location_name or None,
                         )
 
                         if result.description:

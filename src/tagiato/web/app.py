@@ -1,5 +1,6 @@
 """FastAPI aplikace pro web UI."""
 
+import re
 from pathlib import Path
 from typing import Optional, List
 
@@ -16,6 +17,37 @@ from tagiato.services.location_matcher import LocationMatcher
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.web.state import app_state, PhotoState, ProcessingStatus
 from tagiato.web.routes import router
+
+
+def _read_location_from_xmp(xmp_path: Path) -> Optional[str]:
+    """Přečte location_name z XMP sidecar souboru.
+
+    Args:
+        xmp_path: Cesta k XMP souboru
+
+    Returns:
+        Název místa nebo None
+    """
+    if not xmp_path.exists():
+        return None
+
+    try:
+        content = xmp_path.read_text(encoding="utf-8")
+        # Hledáme tag <Iptc4xmpCore:Location>...</Iptc4xmpCore:Location>
+        match = re.search(r"<Iptc4xmpCore:Location>([^<]+)</Iptc4xmpCore:Location>", content)
+        if match:
+            # Unescape XML entities
+            location = match.group(1)
+            location = location.replace("&amp;", "&")
+            location = location.replace("&lt;", "<")
+            location = location.replace("&gt;", ">")
+            location = location.replace("&quot;", '"')
+            location = location.replace("&apos;", "'")
+            return location.strip() if location.strip() else None
+    except (IOError, UnicodeDecodeError):
+        pass
+
+    return None
 
 
 def create_app(
@@ -132,6 +164,12 @@ def _load_photos(
             state.description = photo.description
             state.has_exif_description = True
             state.ai_status = ProcessingStatus.DONE
+
+        # Read location_name from XMP sidecar (if exists)
+        xmp_path = photo.path.with_suffix(".xmp")
+        location_name = _read_location_from_xmp(xmp_path)
+        if location_name:
+            state.location_name = location_name
 
         # Generate thumbnail path (generate on-demand)
         thumb_path = thumbnails_dir / f"{photo.path.stem}_thumb.jpg"

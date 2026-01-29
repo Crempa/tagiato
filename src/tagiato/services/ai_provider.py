@@ -111,6 +111,7 @@ class AIProvider(ABC):
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        location_name: Optional[str] = None,
     ) -> DescriptionResult:
         """Vygeneruje popisek pro fotku."""
         pass
@@ -205,6 +206,7 @@ class ClaudeProvider(AIProvider):
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        location_name: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("ClaudeProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -212,6 +214,8 @@ class ClaudeProvider(AIProvider):
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
+        if location_name:
+            context_lines.append(f"- Lokalizované místo: {location_name}")
         if place_name:
             context_lines.append(f"- Místo (hrubý odhad): {place_name}")
         if timestamp:
@@ -340,6 +344,7 @@ class GeminiProvider(AIProvider):
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        location_name: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("GeminiProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -347,6 +352,8 @@ class GeminiProvider(AIProvider):
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
+        if location_name:
+            context_lines.append(f"- Lokalizované místo: {location_name}")
         if place_name:
             context_lines.append(f"- Místo (hrubý odhad): {place_name}")
         if timestamp:
@@ -480,6 +487,7 @@ class OpenAIProvider(AIProvider):
         coords: Optional[GPSCoordinates],
         timestamp: Optional[str],
         custom_prompt: Optional[str] = None,
+        location_name: Optional[str] = None,
     ) -> DescriptionResult:
         log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -487,6 +495,8 @@ class OpenAIProvider(AIProvider):
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
+        if location_name:
+            context_lines.append(f"- Lokalizované místo: {location_name}")
         if place_name:
             context_lines.append(f"- Místo (hrubý odhad): {place_name}")
         if timestamp:

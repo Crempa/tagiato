@@ -429,6 +429,13 @@ function renderPhotoCard(photo) {
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">Místo</label>
+                        <input type="text" class="form-control location-input"
+                               id="loc-${photo.filename}" value="${photo.location_name || ''}"
+                               placeholder="Název místa (z AI lokalizace)">
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Popisek</label>
                         <textarea class="form-control description-textarea"
                                   id="desc-${photo.filename}">${photo.description || ''}</textarea>
@@ -510,6 +517,12 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             const data = await response.json();
 
             if (data.success) {
+                // Update location input - vždy když AI vrátí location_name
+                const locInput = document.getElementById(`loc-${filename}`);
+                if (locInput && data.location_name) {
+                    locInput.value = data.location_name;
+                }
+
                 if (data.gps) {
                     // Update GPS input
                     const gpsInput = document.getElementById(`gps-${filename}`);
@@ -530,9 +543,18 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
                         gps_source: 'ai',
                         locate_status: 'done',
                         locate_confidence: data.confidence,
-                        locate_name: data.location_name
+                        location_name: data.location_name
+                    });
+                } else if (data.location_name) {
+                    // Máme location_name, ale ne GPS
+                    showToast(`Místo: ${data.location_name} (bez přesných souřadnic)`, 'warning');
+                    updatePhotoInUI(filename, {
+                        locate_status: 'done',
+                        locate_confidence: data.confidence,
+                        location_name: data.location_name
                     });
                 } else {
+                    // Ani GPS ani location_name
                     showToast('AI nerozpoznalo místo na fotce', 'warning');
                     btn.disabled = false;
                     btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
@@ -590,9 +612,11 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
     if (btn.classList.contains('btn-save')) {
         const gpsInput = document.getElementById(`gps-${filename}`);
         const descInput = document.getElementById(`desc-${filename}`);
+        const locInput = document.getElementById(`loc-${filename}`);
 
         const payload = {
-            description: descInput.value
+            description: descInput.value,
+            location_name: locInput.value || null
         };
 
         // Parse GPS if provided
@@ -613,7 +637,7 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             });
 
             if (response.ok) {
-                showToast('Ulozeno do EXIF');
+                showToast('Ulozeno do EXIF/XMP');
                 // Don't update UI - keep the form values as user entered them
             } else {
                 const error = await response.json();

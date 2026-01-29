@@ -111,7 +111,7 @@ class PhotoState:
 
     # AI location result
     locate_confidence: str = ""  # "high", "medium", "low"
-    locate_name: str = ""  # Name of located place
+    location_name: str = ""  # Name of located place (from AI locate or XMP)
 
     # Flags
     has_exif_gps: bool = False
@@ -139,7 +139,7 @@ class PhotoState:
             "locate_status": self.locate_status.value,
             "locate_error": self.locate_error,
             "locate_confidence": self.locate_confidence,
-            "locate_name": self.locate_name,
+            "location_name": self.location_name,
             "has_exif_gps": self.has_exif_gps,
             "has_exif_description": self.has_exif_description,
             "ai_empty_response": self.ai_empty_response,

@@ -17,9 +17,11 @@ class XmpWriter:
     <rdf:Description rdf:about=""
       xmlns:dc="http://purl.org/dc/elements/1.1/"
       xmlns:exif="http://ns.adobe.com/exif/1.0/"
-      xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/">
+      xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+      xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/">
 {gps_section}
 {description_section}
+{location_section}
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>"""
@@ -34,11 +36,14 @@ class XmpWriter:
       </dc:description>
       <photoshop:Headline>{headline}</photoshop:Headline>"""
 
+    LOCATION_SECTION = """      <Iptc4xmpCore:Location>{location}</Iptc4xmpCore:Location>"""
+
     def write(
         self,
         photo_path: Path,
         gps: Optional[GPSCoordinates] = None,
         description: Optional[str] = None,
+        location_name: Optional[str] = None,
     ) -> Path:
         """Vytvoří XMP sidecar soubor pro fotku.
 
@@ -46,6 +51,7 @@ class XmpWriter:
             photo_path: Cesta k originální fotce
             gps: GPS souřadnice (volitelné)
             description: Popisek (volitelné)
+            location_name: Název místa (volitelné)
 
         Returns:
             Cesta k vytvořenému XMP souboru
@@ -56,6 +62,7 @@ class XmpWriter:
             file=photo_path.name,
             gps=str(gps) if gps else None,
             description=f"{len(description)} chars" if description else None,
+            location_name=location_name,
         )
 
         xmp_path = photo_path.with_suffix(".xmp")
@@ -79,10 +86,17 @@ class XmpWriter:
                 headline=self._escape_xml(headline),
             )
 
+        location_section = ""
+        if location_name:
+            location_section = self.LOCATION_SECTION.format(
+                location=self._escape_xml(location_name),
+            )
+
         # Vygenerovat XMP
         xmp_content = self.XMP_TEMPLATE.format(
             gps_section=gps_section,
             description_section=description_section,
+            location_section=location_section,
         )
 
         # Uložit
