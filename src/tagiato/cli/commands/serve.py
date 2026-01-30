@@ -72,6 +72,7 @@ def serve(
         import uvicorn
         from tagiato.web.app import create_app
         from tagiato.core.logger import set_web_mode
+        from tagiato.services.exif_writer import is_exiftool_available
     except ImportError as e:
         console.print("[red]Chyba:[/red] Web závislosti nejsou nainstalované.")
         console.print("Nainstalujte je pomocí: pip install tagiato[web]")
@@ -87,6 +88,14 @@ def serve(
     console.print(f"  Popisky: {describe_provider}/{describe_model}")
     console.print(f"  Lokalizace: {locate_provider}/{locate_model}")
     console.print(f"  Port: {port}")
+
+    # Kontrola exiftool
+    if not is_exiftool_available():
+        console.print()
+        console.print("[yellow]⚠ Varování:[/yellow] exiftool není nainstalován")
+        console.print("  Zápis názvu lokality (IPTC:Sub-location) nebude dostupný.")
+        console.print("  Instalace: brew install exiftool (macOS) nebo apt install libimage-exiftool-perl (Linux)")
+
     console.print()
 
     # Create FastAPI app

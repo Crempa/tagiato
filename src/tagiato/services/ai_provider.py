@@ -28,15 +28,14 @@ class LocationResult:
 
 
 # Společné prompt šablony
-LOCATE_PROMPT_TEMPLATE = """Jsi expert na geolokalizaci fotografií. Tvým úkolem je určit PŘESNÉ GPS souřadnice místa na fotce.
+LOCATE_PROMPT_TEMPLATE = """Jsi expert na geolokalizaci. Tvým úkolem je určit PŘESNÉ GPS souřadnice místa.
 
 Vstupní data:
-- Cesta k náhledu: {thumbnail_path}
-- Datum pořízení: {timestamp}
+{image_line}- Datum pořízení: {timestamp}
 {user_hint_line}
 
 INSTRUKCE:
-1. Analyzuj fotku a pokus se identifikovat konkrétní místo (budovu, památku, ulici, park, atd.)
+1. Na základě dostupných informací se pokus identifikovat konkrétní místo (budovu, památku, ulici, park, atd.)
 2. Pokud bezpečně poznáš místo, vrať jeho přesné GPS souřadnice (střed budovy/památky)
 3. Pokud místo nepoznáš s jistotou, vrať null
 4. Buď konzervativní - lepší je vrátit null než špatné souřadnice
@@ -55,16 +54,15 @@ VÝSTUP JSON:
 }}
 """
 
-DESCRIBE_PROMPT_TEMPLATE = """Jsi stručný glosátor a cestovatel. Tvým úkolem je k fotce napsat "mikro-popisek" (caption).
+DESCRIBE_PROMPT_TEMPLATE = """Jsi stručný glosátor a cestovatel. Tvým úkolem je napsat "mikro-popisek" (caption) k danému místu.
 
 Vstupní data:
-- Cesta k náhledu: {thumbnail_path}
-{context_lines}{user_hint_line}
+{image_line}{context_lines}{user_hint_line}
 
 INSTRUKCE PRO TEXT (POPISEK):
 Musíš dodržet tento striktní formát:
 1. První věta: Musí obsahovat PŘESNÝ NÁZEV MÍSTA nebo objektu (nominativ).
-2. Druhá věta: Jedna technická/historická zajímavost nebo "hard fact" související s tím, co je na fotce.
+2. Druhá věta: Jedna technická/historická zajímavost nebo "hard fact" související s daným místem.
 3. NIC VÍC. Žádné úvody "Nacházíme se...", žádné pocity.
 
 OMEZENÍ:
@@ -225,8 +223,9 @@ class ClaudeProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
-            thumbnail_path=str(thumbnail_path.absolute()),
+            image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
         )
@@ -263,8 +262,9 @@ class ClaudeProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
-            thumbnail_path=str(thumbnail_path.absolute()),
+            image_line=image_line,
             timestamp=timestamp or "neznámé",
             user_hint_line=user_hint_line,
         )
@@ -367,8 +367,9 @@ class GeminiProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
-            thumbnail_path=str(thumbnail_path.absolute()),
+            image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
         )
@@ -404,8 +405,9 @@ class GeminiProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
-            thumbnail_path=str(thumbnail_path.absolute()),
+            image_line=image_line,
             timestamp=timestamp or "neznámé",
             user_hint_line=user_hint_line,
         )
@@ -514,8 +516,9 @@ class OpenAIProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
+        image_line = "- Analyzuj přiložený obrázek\n"
         prompt = template.format(
-            thumbnail_path="[obrázek přiložen přes --image]",
+            image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
         )
@@ -551,8 +554,9 @@ class OpenAIProvider(AIProvider):
             user_hint_line = ""
 
         template = custom_prompt or LOCATE_PROMPT_TEMPLATE
+        image_line = "- Analyzuj přiložený obrázek\n"
         prompt = template.format(
-            thumbnail_path="[obrázek přiložen přes --image]",
+            image_line=image_line,
             timestamp=timestamp or "neznámé",
             user_hint_line=user_hint_line,
         )

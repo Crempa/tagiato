@@ -18,6 +18,7 @@ class Photo:
     matched_location: Optional[Location] = None  # Lokace z timeline
     refined_gps: Optional[GPSCoordinates] = None  # Upřesněné GPS od AI
     description: str = ""
+    location_name: Optional[str] = None  # Název lokality z IPTC:Sub-location
     thumbnail_path: Optional[Path] = None
     processed: bool = False
     error: Optional[str] = None

@@ -98,6 +98,15 @@ def log_info(message: str) -> None:
         _console.print(f"  [dim]{message}[/dim]")
 
 
+def log_warning(message: str) -> None:
+    """Zaloguje varovnou zprávu."""
+    # Web log - vždy
+    _web_log("warning", message)
+
+    # Console log - vždy (varování jsou důležitá)
+    _console.print(f"  [yellow]⚠ {message}[/yellow]")
+
+
 def log_prompt(prompt: str) -> None:
     """Zaloguje celý prompt do web bufferu."""
     _web_log("prompt", "AI Prompt", {"prompt": prompt})

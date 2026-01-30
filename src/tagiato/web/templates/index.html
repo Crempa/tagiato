@@ -247,7 +247,7 @@
                     <div class="tab-pane fade show active" id="describe-pane" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <small class="text-muted">
-                                Placeholdery: <code>{thumbnail_path}</code>, <code>{context_lines}</code>
+                                Placeholdery: <code>{image_line}</code>, <code>{context_lines}</code>, <code>{user_hint_line}</code>
                             </small>
                             <button class="btn btn-outline-secondary btn-sm" id="btnResetDescribe">
                                 <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -260,7 +260,7 @@
                     <div class="tab-pane fade" id="locate-pane" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <small class="text-muted">
-                                Placeholdery: <code>{thumbnail_path}</code>, <code>{timestamp}</code>
+                                Placeholdery: <code>{image_line}</code>, <code>{timestamp}</code>, <code>{user_hint_line}</code>
                             </small>
                             <button class="btn btn-outline-secondary btn-sm" id="btnResetLocate">
                                 <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -480,28 +480,48 @@ function renderPhotoCard(photo) {
                         </div>
                     </div>
 
-                    <div class="d-flex gap-2 flex-wrap">
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary btn-locate"
-                                    data-filename="${photo.filename}">
-                                <i class="bi bi-geo-alt me-1"></i>Lokalizovat
-                            </button>
-                            <button class="btn btn-outline-secondary btn-prompt-preview"
-                                    data-filename="${photo.filename}" data-type="locate"
-                                    title="Zobrazit prompt">
-                                <i class="bi bi-code"></i>
-                            </button>
+                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary btn-locate"
+                                        data-filename="${photo.filename}">
+                                    <i class="bi bi-geo-alt me-1"></i>Lokalizovat
+                                </button>
+                                <button class="btn btn-outline-secondary btn-prompt-preview"
+                                        data-filename="${photo.filename}" data-type="locate"
+                                        title="Zobrazit prompt">
+                                    <i class="bi bi-code"></i>
+                                </button>
+                            </div>
+                            <div class="form-check form-check-inline mb-0 ms-1">
+                                <input class="form-check-input" type="checkbox"
+                                       id="include-image-locate-${photo.filename}" checked
+                                       title="Zahrnout obrázek v promptu">
+                                <label class="form-check-label small" for="include-image-locate-${photo.filename}">
+                                    <i class="bi bi-image"></i>
+                                </label>
+                            </div>
                         </div>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary btn-generate"
-                                    data-filename="${photo.filename}">
-                                <i class="bi bi-stars me-1"></i>Generate AI
-                            </button>
-                            <button class="btn btn-outline-primary btn-prompt-preview"
-                                    data-filename="${photo.filename}" data-type="describe"
-                                    title="Zobrazit prompt">
-                                <i class="bi bi-code"></i>
-                            </button>
+                        <div class="d-flex align-items-center gap-1">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary btn-generate"
+                                        data-filename="${photo.filename}">
+                                    <i class="bi bi-stars me-1"></i>Generate AI
+                                </button>
+                                <button class="btn btn-outline-primary btn-prompt-preview"
+                                        data-filename="${photo.filename}" data-type="describe"
+                                        title="Zobrazit prompt">
+                                    <i class="bi bi-code"></i>
+                                </button>
+                            </div>
+                            <div class="form-check form-check-inline mb-0 ms-1">
+                                <input class="form-check-input" type="checkbox"
+                                       id="include-image-describe-${photo.filename}" checked
+                                       title="Zahrnout obrázek v promptu">
+                                <label class="form-check-label small" for="include-image-describe-${photo.filename}">
+                                    <i class="bi bi-image"></i>
+                                </label>
+                            </div>
                         </div>
                         <button class="btn btn-success btn-sm btn-save"
                                 data-filename="${photo.filename}">
@@ -573,6 +593,10 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             const data = await response.json();
 
             if (data.success) {
+                // Reset checkbox to default (checked)
+                const locateCheckbox = document.getElementById(`include-image-locate-${filename}`);
+                if (locateCheckbox) locateCheckbox.checked = true;
+
                 // Update location input - vždy když AI vrátí location_name
                 const locInput = document.getElementById(`loc-${filename}`);
                 if (locInput && data.location_name) {
@@ -643,6 +667,10 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             const data = await response.json();
 
             if (data.success) {
+                // Reset checkbox to default (checked)
+                const describeCheckbox = document.getElementById(`include-image-describe-${filename}`);
+                if (describeCheckbox) describeCheckbox.checked = true;
+
                 if (data.empty) {
                     updatePhotoInUI(filename, { ai_status: 'done', ai_empty_response: true });
                     showToast('AI nerozpoznalo obsah fotky', 'warning');
@@ -1543,11 +1571,18 @@ async function showPromptPreview(filename, promptType) {
         userHint = document.getElementById(`describe-hint-${filename}`)?.value || '';
     }
 
+    // Get include_image checkbox state based on prompt type
+    const checkboxId = promptType === 'locate'
+        ? `include-image-locate-${filename}`
+        : `include-image-describe-${filename}`;
+    const includeImageCheckbox = document.getElementById(checkboxId);
+    const includeImage = includeImageCheckbox ? includeImageCheckbox.checked : true;
+
     try {
         const response = await fetch(`/api/photos/${encodeURIComponent(filename)}/prompt-preview`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: promptType, user_hint: userHint })
+            body: JSON.stringify({ type: promptType, user_hint: userHint, include_image: includeImage })
         });
 
         if (!response.ok) {
@@ -1558,7 +1593,8 @@ async function showPromptPreview(filename, promptType) {
 
         // Update modal title
         const title = promptType === 'locate' ? 'Prompt pro lokalizaci' : 'Prompt pro popisek';
-        document.getElementById('promptPreviewTitle').textContent = title;
+        const imageIndicator = includeImage ? ' (s obrázkem)' : ' (bez obrázku)';
+        document.getElementById('promptPreviewTitle').textContent = title + imageIndicator;
 
         // Update modal content
         document.getElementById('promptPreviewContent').textContent = data.prompt;

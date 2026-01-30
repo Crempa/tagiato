@@ -8,6 +8,7 @@ import piexif
 
 from tagiato.models.photo import Photo
 from tagiato.models.location import GPSCoordinates
+from tagiato.services.exif_writer import read_location_name
 
 
 class PhotoScanner:
@@ -54,6 +55,9 @@ class PhotoScanner:
         except Exception:
             # Pokud EXIF nelze přečíst, pokračujeme bez něj
             pass
+
+        # Přečíst location_name z IPTC (pomocí exiftool)
+        photo.location_name = read_location_name(path)
 
         return photo
 

@@ -13,7 +13,6 @@ from tagiato.models.location import GPSCoordinates
 from tagiato.services.ai_provider import get_provider, get_available_providers, DESCRIBE_PROMPT_TEMPLATE, LOCATE_PROMPT_TEMPLATE
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.services.exif_writer import ExifWriter
-from tagiato.services.xmp_writer import XmpWriter
 from tagiato.core.exceptions import ExifError
 from tagiato.web.state import app_state, ProcessingStatus, log_buffer
 
@@ -319,6 +318,14 @@ async def get_prompt_preview(filename: str, request: Request):
 
     prompt_type = body.get("type", "describe")  # "describe" or "locate"
     user_hint = body.get("user_hint", "")
+    include_image = body.get("include_image", True)  # Default to include image
+
+    # Build image line based on include_image flag
+    if include_image:
+        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
+        image_line = f"- Analyzuj tento obrázek: {thumbnail_path}\n"
+    else:
+        image_line = ""
 
     # Build context for describe prompt
     if prompt_type == "describe":
@@ -335,10 +342,9 @@ async def get_prompt_preview(filename: str, request: Request):
         user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
 
         template = app_state.describe_prompt or DESCRIBE_PROMPT_TEMPLATE
-        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
 
         prompt = template.format(
-            thumbnail_path=thumbnail_path,
+            image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
         )
@@ -347,10 +353,9 @@ async def get_prompt_preview(filename: str, request: Request):
         user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
 
         template = app_state.locate_prompt or LOCATE_PROMPT_TEMPLATE
-        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
 
         prompt = template.format(
-            thumbnail_path=thumbnail_path,
+            image_line=image_line,
             timestamp=photo.timestamp.strftime("%d. %m. %Y %H:%M") if photo.timestamp else "neznámé",
             user_hint_line=user_hint_line,
         )
@@ -381,27 +386,19 @@ async def update_photo(filename: str, data: PhotoUpdate):
     # Get updated photo
     photo = app_state.get_photo(filename)
 
-    # Write to EXIF and XMP
+    # Write to EXIF
     try:
         exif_writer = ExifWriter()
         exif_writer.write(
             photo_path=photo.path,
             gps=photo.gps,
             description=photo.description if photo.description else None,
+            location_name=photo.location_name if photo.location_name else None,
             skip_existing_gps=False,  # Always overwrite in serve mode
         )
 
-        # Write XMP sidecar with location_name
-        xmp_writer = XmpWriter()
-        xmp_writer.write(
-            photo_path=photo.path,
-            gps=photo.gps,
-            description=photo.description if photo.description else None,
-            location_name=photo.location_name if photo.location_name else None,
-        )
-
         app_state.update_photo(filename, is_dirty=False)
-        return {"success": True, "message": "Saved to EXIF/XMP"}
+        return {"success": True, "message": "Saved to EXIF"}
 
     except ExifError as e:
         raise HTTPException(status_code=500, detail=str(e))
