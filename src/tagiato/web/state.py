@@ -8,8 +8,38 @@ from typing import Dict, List, Optional, Callable, Any
 import threading
 import queue
 import json
+import uuid
 
 from tagiato.models.location import GPSCoordinates
+
+
+class TaskStatus(str, Enum):
+    """Stav AI tasku."""
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    ERROR = "error"
+
+
+@dataclass
+class AITask:
+    """AI task pro asynchronní zpracování."""
+    task_id: str
+    filename: str
+    operation: str  # "describe" nebo "locate"
+    status: TaskStatus = TaskStatus.PENDING
+    result: Optional[dict] = None
+    error: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "task_id": self.task_id,
+            "filename": self.filename,
+            "operation": self.operation,
+            "status": self.status.value,
+            "result": self.result,
+            "error": self.error,
+        }
 
 
 class LogBuffer:
@@ -178,6 +208,10 @@ class AppState:
         self.batch: BatchState = BatchState()
         self.lock = threading.Lock()
 
+        # AI tasks for async processing
+        self.ai_tasks: Dict[str, AITask] = {}
+        self.ai_tasks_lock = threading.Lock()
+
         # Config
         self.photos_dir: Optional[Path] = None
         self.thumbnails_dir: Optional[Path] = None
@@ -217,6 +251,47 @@ class AppState:
         """Get all photos in order."""
         with self.lock:
             return [self.photos[name] for name in self.photos_order if name in self.photos]
+
+    def create_task(self, filename: str, operation: str) -> AITask:
+        """Vytvoří nový AI task."""
+        task_id = str(uuid.uuid4())
+        task = AITask(
+            task_id=task_id,
+            filename=filename,
+            operation=operation,
+            status=TaskStatus.PENDING,
+        )
+        with self.ai_tasks_lock:
+            self.ai_tasks[task_id] = task
+        return task
+
+    def get_task(self, task_id: str) -> Optional[AITask]:
+        """Vrátí AI task podle ID."""
+        with self.ai_tasks_lock:
+            return self.ai_tasks.get(task_id)
+
+    def update_task(self, task_id: str, **kwargs) -> Optional[AITask]:
+        """Aktualizuje AI task."""
+        with self.ai_tasks_lock:
+            task = self.ai_tasks.get(task_id)
+            if not task:
+                return None
+            for key, value in kwargs.items():
+                if hasattr(task, key):
+                    setattr(task, key, value)
+            return task
+
+    def cleanup_old_tasks(self, max_age_seconds: int = 3600) -> None:
+        """Vymaže staré dokončené tasky."""
+        with self.ai_tasks_lock:
+            to_remove = []
+            for task_id, task in self.ai_tasks.items():
+                if task.status in (TaskStatus.DONE, TaskStatus.ERROR):
+                    to_remove.append(task_id)
+            # Keep only last 100 completed tasks
+            if len(to_remove) > 100:
+                for task_id in to_remove[:-100]:
+                    del self.ai_tasks[task_id]
 
     def get_photos_dict(self) -> List[dict]:
         """Get all photos as dicts for JSON response."""

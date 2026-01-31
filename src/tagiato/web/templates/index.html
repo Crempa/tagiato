@@ -558,15 +558,135 @@ async function loadPhotos() {
     }
 }
 
-// Update single photo in UI (without re-attaching listeners)
+// Update single photo in UI - zachovává ručně upravené hodnoty
 function updatePhotoInUI(filename, updatedData) {
     const photo = photos.find(p => p.filename === filename);
-    if (photo) {
-        Object.assign(photo, updatedData);
-        const card = document.querySelector(`.photo-card[data-filename="${filename}"]`);
-        if (card) {
-            card.outerHTML = renderPhotoCard(photo);
+    if (!photo) return;
+
+    // Zachytit ručně upravené hodnoty z DOM před překreslením
+    const gpsInput = document.getElementById(`gps-${filename}`);
+    const descInput = document.getElementById(`desc-${filename}`);
+    const locInput = document.getElementById(`loc-${filename}`);
+
+    const userEdits = {
+        gps: gpsInput?.value,
+        description: descInput?.value,
+        location_name: locInput?.value,
+    };
+
+    // Sloučit nová data do objektu
+    Object.assign(photo, updatedData);
+
+    // Překreslit kartu
+    const card = document.querySelector(`.photo-card[data-filename="${filename}"]`);
+    if (card) {
+        card.outerHTML = renderPhotoCard(photo);
+    }
+
+    // Obnovit ručně upravené hodnoty (pokud updatedData neobsahuje tyto fieldy)
+    const newGpsInput = document.getElementById(`gps-${filename}`);
+    const newDescInput = document.getElementById(`desc-${filename}`);
+    const newLocInput = document.getElementById(`loc-${filename}`);
+
+    // Obnovit GPS pokud uživatel upravil a updatedData neobsahuje nové gps
+    if (newGpsInput && userEdits.gps && !updatedData.gps) {
+        newGpsInput.value = userEdits.gps;
+    }
+    // Obnovit description pokud uživatel upravil a updatedData neobsahuje description
+    if (newDescInput && userEdits.description && !('description' in updatedData)) {
+        newDescInput.value = userEdits.description;
+    }
+    // Obnovit location_name pokud uživatel upravil a updatedData neobsahuje location_name
+    if (newLocInput && userEdits.location_name && !('location_name' in updatedData)) {
+        newLocInput.value = userEdits.location_name;
+    }
+}
+
+// Poll task status until done
+async function pollTaskStatus(taskId, filename, operation, btn) {
+    const pollInterval = 500; // ms
+
+    async function poll() {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}`);
+            const task = await response.json();
+
+            if (task.status === 'running' || task.status === 'pending') {
+                setTimeout(poll, pollInterval);
+                return;
+            }
+
+            if (task.status === 'done') {
+                const result = task.result;
+
+                if (operation === 'describe') {
+                    // Reset checkbox to default (checked)
+                    const describeCheckbox = document.getElementById(`include-image-describe-${filename}`);
+                    if (describeCheckbox) describeCheckbox.checked = true;
+
+                    if (result.empty) {
+                        updatePhotoInUI(filename, { ai_status: 'done', ai_empty_response: true });
+                        showToast('AI nerozpoznalo obsah fotky', 'warning');
+                    } else {
+                        updatePhotoInUI(filename, {
+                            description: result.description,
+                            ai_status: 'done',
+                            ai_empty_response: false
+                        });
+                        showToast('Popisek vygenerován');
+                    }
+                } else if (operation === 'locate') {
+                    // Reset checkbox to default (checked)
+                    const locateCheckbox = document.getElementById(`include-image-locate-${filename}`);
+                    if (locateCheckbox) locateCheckbox.checked = true;
+
+                    if (result.gps) {
+                        const confidenceText = result.confidence === 'high' ? 'vysoká' :
+                                              result.confidence === 'medium' ? 'střední' : 'nízká';
+                        let message = `Lokalizováno: ${result.location_name || 'neznámé místo'}`;
+                        message += ` (jistota: ${confidenceText})`;
+                        showToast(message);
+
+                        updatePhotoInUI(filename, {
+                            gps: result.gps,
+                            gps_source: 'ai',
+                            locate_status: 'done',
+                            locate_confidence: result.confidence,
+                            location_name: result.location_name
+                        });
+                    } else if (result.location_name) {
+                        showToast(`Místo: ${result.location_name} (bez přesných souřadnic)`, 'warning');
+                        updatePhotoInUI(filename, {
+                            locate_status: 'done',
+                            locate_confidence: result.confidence,
+                            location_name: result.location_name
+                        });
+                    } else {
+                        showToast('AI nerozpoznalo místo na fotce', 'warning');
+                        resetButton(btn, operation);
+                        return;
+                    }
+                }
+            } else if (task.status === 'error') {
+                showToast('Chyba: ' + task.error, 'error');
+                resetButton(btn, operation);
+                return;
+            }
+        } catch (error) {
+            showToast('Chyba při kontrole stavu: ' + error.message, 'error');
+            resetButton(btn, operation);
         }
+    }
+
+    poll();
+}
+
+function resetButton(btn, operation) {
+    btn.disabled = false;
+    if (operation === 'describe') {
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate AI';
+    } else {
+        btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
     }
 }
 
@@ -592,62 +712,16 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             });
             const data = await response.json();
 
-            if (data.success) {
-                // Reset checkbox to default (checked)
-                const locateCheckbox = document.getElementById(`include-image-locate-${filename}`);
-                if (locateCheckbox) locateCheckbox.checked = true;
-
-                // Update location input - vždy když AI vrátí location_name
-                const locInput = document.getElementById(`loc-${filename}`);
-                if (locInput && data.location_name) {
-                    locInput.value = data.location_name;
-                }
-
-                if (data.gps) {
-                    // Update GPS input
-                    const gpsInput = document.getElementById(`gps-${filename}`);
-                    if (gpsInput) {
-                        gpsInput.value = `${data.gps.lat.toFixed(6)}, ${data.gps.lng.toFixed(6)}`;
-                    }
-
-                    // Show result
-                    const confidenceText = data.confidence === 'high' ? 'vysoká' :
-                                          data.confidence === 'medium' ? 'střední' : 'nízká';
-                    let message = `Lokalizováno: ${data.location_name || 'neznámé místo'}`;
-                    message += ` (jistota: ${confidenceText})`;
-                    showToast(message);
-
-                    // Update photo in state
-                    updatePhotoInUI(filename, {
-                        gps: data.gps,
-                        gps_source: 'ai',
-                        locate_status: 'done',
-                        locate_confidence: data.confidence,
-                        location_name: data.location_name
-                    });
-                } else if (data.location_name) {
-                    // Máme location_name, ale ne GPS
-                    showToast(`Místo: ${data.location_name} (bez přesných souřadnic)`, 'warning');
-                    updatePhotoInUI(filename, {
-                        locate_status: 'done',
-                        locate_confidence: data.confidence,
-                        location_name: data.location_name
-                    });
-                } else {
-                    // Ani GPS ani location_name
-                    showToast('AI nerozpoznalo místo na fotce', 'warning');
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
-                }
+            if (data.task_id) {
+                // Async task - start polling
+                pollTaskStatus(data.task_id, filename, 'locate', btn);
             } else {
                 showToast('Lokalizace selhala', 'error');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
+                resetButton(btn, 'locate');
             }
         } catch (error) {
             showToast('Chyba: ' + error.message, 'error');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-geo-alt me-1"></i>Lokalizovat';
+            resetButton(btn, 'locate');
         }
         return;
     }
@@ -666,31 +740,16 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             });
             const data = await response.json();
 
-            if (data.success) {
-                // Reset checkbox to default (checked)
-                const describeCheckbox = document.getElementById(`include-image-describe-${filename}`);
-                if (describeCheckbox) describeCheckbox.checked = true;
-
-                if (data.empty) {
-                    updatePhotoInUI(filename, { ai_status: 'done', ai_empty_response: true });
-                    showToast('AI nerozpoznalo obsah fotky', 'warning');
-                } else {
-                    updatePhotoInUI(filename, {
-                        description: data.description,
-                        ai_status: 'done',
-                        ai_empty_response: false
-                    });
-                    showToast('Popisek vygenerovan');
-                }
+            if (data.task_id) {
+                // Async task - start polling
+                pollTaskStatus(data.task_id, filename, 'describe', btn);
             } else {
-                showToast('Generovani selhalo', 'error');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate AI';
+                showToast('Generování selhalo', 'error');
+                resetButton(btn, 'describe');
             }
         } catch (error) {
             showToast('Chyba: ' + error.message, 'error');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate AI';
+            resetButton(btn, 'describe');
         }
         return;
     }

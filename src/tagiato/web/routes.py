@@ -14,7 +14,7 @@ from tagiato.services.ai_provider import get_provider, get_available_providers, 
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.services.exif_writer import ExifWriter
 from tagiato.core.exceptions import ExifError
-from tagiato.web.state import app_state, ProcessingStatus, log_buffer
+from tagiato.web.state import app_state, ProcessingStatus, TaskStatus, log_buffer
 
 import requests
 
@@ -160,21 +160,14 @@ async def get_thumbnail(filename: str):
     raise HTTPException(status_code=404, detail="Thumbnail not available")
 
 
-@router.post("/api/photos/{filename}/generate")
-async def generate_description(filename: str, request: Request):
-    """Generate AI description for a photo."""
+async def _run_describe_task(task_id: str, filename: str, user_hint: str):
+    """Background worker pro generování popisku."""
     photo = app_state.get_photo(filename)
     if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
+        app_state.update_task(task_id, status=TaskStatus.ERROR, error="Photo not found")
+        return
 
-    # Parse optional user_hint from request body
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
-    user_hint = body.get("user_hint", "")
-
+    app_state.update_task(task_id, status=TaskStatus.RUNNING)
     app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
 
     try:
@@ -185,10 +178,13 @@ async def generate_description(filename: str, request: Request):
                 photo.thumbnail_path = generator.generate(photo.path)
 
         if not photo.thumbnail_path:
-            raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
+            raise Exception("Cannot generate thumbnail")
 
         provider = get_provider(app_state.describe_provider, app_state.describe_model)
-        result = provider.describe(
+
+        # Run blocking AI call in thread pool
+        result = await asyncio.to_thread(
+            provider.describe,
             thumbnail_path=photo.thumbnail_path,
             place_name=photo.place_name,
             coords=photo.gps,
@@ -207,14 +203,22 @@ async def generate_description(filename: str, request: Request):
                 ai_empty_response=False,
                 is_dirty=True,
             )
-            return {"success": True, "description": result.description}
+            app_state.update_task(
+                task_id,
+                status=TaskStatus.DONE,
+                result={"success": True, "description": result.description}
+            )
         else:
             app_state.update_photo(
                 filename,
                 ai_status=ProcessingStatus.DONE,
                 ai_empty_response=True,
             )
-            return {"success": True, "description": "", "empty": True}
+            app_state.update_task(
+                task_id,
+                status=TaskStatus.DONE,
+                result={"success": True, "description": "", "empty": True}
+            )
 
     except Exception as e:
         app_state.update_photo(
@@ -222,12 +226,12 @@ async def generate_description(filename: str, request: Request):
             ai_status=ProcessingStatus.ERROR,
             ai_error=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        app_state.update_task(task_id, status=TaskStatus.ERROR, error=str(e))
 
 
-@router.post("/api/photos/{filename}/locate")
-async def locate_photo(filename: str, request: Request):
-    """Use AI to determine precise GPS location of a photo."""
+@router.post("/api/photos/{filename}/generate")
+async def generate_description(filename: str, request: Request):
+    """Generate AI description for a photo (async)."""
     photo = app_state.get_photo(filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -240,6 +244,21 @@ async def locate_photo(filename: str, request: Request):
         pass
     user_hint = body.get("user_hint", "")
 
+    # Create task and start background processing
+    task = app_state.create_task(filename, "describe")
+    asyncio.create_task(_run_describe_task(task.task_id, filename, user_hint))
+
+    return {"task_id": task.task_id, "status": "started"}
+
+
+async def _run_locate_task(task_id: str, filename: str, user_hint: str):
+    """Background worker pro lokalizaci."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        app_state.update_task(task_id, status=TaskStatus.ERROR, error="Photo not found")
+        return
+
+    app_state.update_task(task_id, status=TaskStatus.RUNNING)
     app_state.update_photo(filename, locate_status=ProcessingStatus.PROCESSING)
 
     try:
@@ -250,10 +269,13 @@ async def locate_photo(filename: str, request: Request):
                 photo.thumbnail_path = generator.generate(photo.path)
 
         if not photo.thumbnail_path:
-            raise HTTPException(status_code=400, detail="Cannot generate thumbnail")
+            raise Exception("Cannot generate thumbnail")
 
         provider = get_provider(app_state.locate_provider, app_state.locate_model)
-        result = provider.locate(
+
+        # Run blocking AI call in thread pool
+        result = await asyncio.to_thread(
+            provider.locate,
             thumbnail_path=photo.thumbnail_path,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
             custom_prompt=app_state.locate_prompt,
@@ -271,13 +293,17 @@ async def locate_photo(filename: str, request: Request):
                 location_name=result.location_name,
                 is_dirty=True,
             )
-            return {
-                "success": True,
-                "gps": {"lat": result.gps.latitude, "lng": result.gps.longitude},
-                "confidence": result.confidence,
-                "location_name": result.location_name,
-                "reasoning": result.reasoning,
-            }
+            app_state.update_task(
+                task_id,
+                status=TaskStatus.DONE,
+                result={
+                    "success": True,
+                    "gps": {"lat": result.gps.latitude, "lng": result.gps.longitude},
+                    "confidence": result.confidence,
+                    "location_name": result.location_name,
+                    "reasoning": result.reasoning,
+                }
+            )
         else:
             # I bez GPS můžeme mít location_name
             app_state.update_photo(
@@ -286,13 +312,17 @@ async def locate_photo(filename: str, request: Request):
                 locate_confidence=result.confidence,
                 location_name=result.location_name,
             )
-            return {
-                "success": True,
-                "gps": None,
-                "confidence": result.confidence,
-                "location_name": result.location_name,
-                "reasoning": result.reasoning,
-            }
+            app_state.update_task(
+                task_id,
+                status=TaskStatus.DONE,
+                result={
+                    "success": True,
+                    "gps": None,
+                    "confidence": result.confidence,
+                    "location_name": result.location_name,
+                    "reasoning": result.reasoning,
+                }
+            )
 
     except Exception as e:
         app_state.update_photo(
@@ -300,7 +330,38 @@ async def locate_photo(filename: str, request: Request):
             locate_status=ProcessingStatus.ERROR,
             locate_error=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        app_state.update_task(task_id, status=TaskStatus.ERROR, error=str(e))
+
+
+@router.post("/api/photos/{filename}/locate")
+async def locate_photo(filename: str, request: Request):
+    """Use AI to determine precise GPS location of a photo (async)."""
+    photo = app_state.get_photo(filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    # Parse optional user_hint from request body
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    user_hint = body.get("user_hint", "")
+
+    # Create task and start background processing
+    task = app_state.create_task(filename, "locate")
+    asyncio.create_task(_run_locate_task(task.task_id, filename, user_hint))
+
+    return {"task_id": task.task_id, "status": "started"}
+
+
+@router.get("/api/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """Get status of an AI task."""
+    task = app_state.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.to_dict()
 
 
 @router.post("/api/photos/{filename}/prompt-preview")
