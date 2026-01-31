@@ -1,5 +1,6 @@
 """Zápis GPS a popisků do EXIF metadat."""
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -98,7 +99,8 @@ class ExifWriter:
         skip_existing_gps: bool,
     ) -> None:
         """Zapíše metadata pomocí exiftool."""
-        args = ["exiftool", "-overwrite_original"]
+        # -P zachová původní datum modifikace souboru
+        args = ["exiftool", "-P", "-overwrite_original"]
 
         # GPS
         if gps is not None:
@@ -172,6 +174,11 @@ class ExifWriter:
     ) -> None:
         """Zapíše metadata pomocí piexif (fallback bez location_name)."""
         try:
+            # Uložit původní čas modifikace souboru
+            original_stat = photo_path.stat()
+            original_mtime = original_stat.st_mtime
+            original_atime = original_stat.st_atime
+
             # Načíst existující EXIF
             try:
                 exif_dict = piexif.load(str(photo_path))
@@ -191,6 +198,9 @@ class ExifWriter:
             # Uložit změny
             exif_bytes = piexif.dump(exif_dict)
             piexif.insert(exif_bytes, str(photo_path))
+
+            # Obnovit původní čas modifikace souboru
+            os.utime(photo_path, (original_atime, original_mtime))
 
         except Exception as e:
             raise ExifError(f"Chyba při zápisu EXIF do {photo_path}: {e}")
@@ -280,7 +290,8 @@ class ExifWriter:
         clear_location_name: bool,
     ) -> bool:
         """Smaže metadata pomocí exiftool."""
-        args = ["exiftool", "-overwrite_original"]
+        # -P zachová původní datum modifikace souboru
+        args = ["exiftool", "-P", "-overwrite_original"]
 
         if clear_gps:
             args.extend(["-GPSLatitude=", "-GPSLatitudeRef=", "-GPSLongitude=", "-GPSLongitudeRef="])
@@ -314,6 +325,11 @@ class ExifWriter:
     ) -> bool:
         """Smaže metadata pomocí piexif (fallback)."""
         try:
+            # Uložit původní čas modifikace souboru
+            original_stat = photo_path.stat()
+            original_mtime = original_stat.st_mtime
+            original_atime = original_stat.st_atime
+
             try:
                 exif_dict = piexif.load(str(photo_path))
             except Exception:
@@ -347,6 +363,8 @@ class ExifWriter:
             if changed:
                 exif_bytes = piexif.dump(exif_dict)
                 piexif.insert(exif_bytes, str(photo_path))
+                # Obnovit původní čas modifikace souboru
+                os.utime(photo_path, (original_atime, original_mtime))
                 log_info("EXIF cleared")
 
             return changed
