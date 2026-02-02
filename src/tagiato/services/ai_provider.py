@@ -58,7 +58,7 @@ DESCRIBE_PROMPT_TEMPLATE = """Jsi stručný glosátor a cestovatel. Tvým úkole
 
 Vstupní data:
 {image_line}{context_lines}{user_hint_line}
-
+{nearby_descriptions_line}
 INSTRUKCE PRO TEXT (POPISEK):
 Musíš dodržet tento striktní formát:
 1. První věta: Musí obsahovat PŘESNÝ NÁZEV MÍSTA nebo objektu (nominativ).
@@ -105,6 +105,7 @@ class AIProvider(ABC):
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
         user_hint: str = "",
+        nearby_descriptions: Optional[list[str]] = None,
     ) -> DescriptionResult:
         """Vygeneruje popisek pro fotku."""
         pass
@@ -202,6 +203,7 @@ class ClaudeProvider(AIProvider):
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
         user_hint: str = "",
+        nearby_descriptions: Optional[list[str]] = None,
     ) -> DescriptionResult:
         log_call("ClaudeProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -222,12 +224,25 @@ class ClaudeProvider(AIProvider):
         else:
             user_hint_line = ""
 
+        # Nearby descriptions context
+        if nearby_descriptions:
+            descriptions_text = "\n".join(f"- {d}" for d in nearby_descriptions)
+            nearby_line = f"""EXISTUJÍCÍ POPISKY Z OKOLÍ:
+{descriptions_text}
+
+DŮLEŽITÉ: NIKDY neopakuj informace z výše uvedených popisků!
+Vyber JINÝ zajímavý fakt o daném místě.
+"""
+        else:
+            nearby_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
             image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
+            nearby_descriptions_line=nearby_line,
         )
 
         response = self._run_claude(prompt)
@@ -346,6 +361,7 @@ class GeminiProvider(AIProvider):
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
         user_hint: str = "",
+        nearby_descriptions: Optional[list[str]] = None,
     ) -> DescriptionResult:
         log_call("GeminiProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -366,12 +382,25 @@ class GeminiProvider(AIProvider):
         else:
             user_hint_line = ""
 
+        # Nearby descriptions context
+        if nearby_descriptions:
+            descriptions_text = "\n".join(f"- {d}" for d in nearby_descriptions)
+            nearby_line = f"""EXISTUJÍCÍ POPISKY Z OKOLÍ:
+{descriptions_text}
+
+DŮLEŽITÉ: NIKDY neopakuj informace z výše uvedených popisků!
+Vyber JINÝ zajímavý fakt o daném místě.
+"""
+        else:
+            nearby_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         image_line = f"- Analyzuj tento obrázek: {thumbnail_path.absolute()}\n"
         prompt = template.format(
             image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
+            nearby_descriptions_line=nearby_line,
         )
 
         response = self._run_gemini(prompt)
@@ -495,6 +524,7 @@ class OpenAIProvider(AIProvider):
         custom_prompt: Optional[str] = None,
         location_name: Optional[str] = None,
         user_hint: str = "",
+        nearby_descriptions: Optional[list[str]] = None,
     ) -> DescriptionResult:
         log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
@@ -515,12 +545,25 @@ class OpenAIProvider(AIProvider):
         else:
             user_hint_line = ""
 
+        # Nearby descriptions context
+        if nearby_descriptions:
+            descriptions_text = "\n".join(f"- {d}" for d in nearby_descriptions)
+            nearby_line = f"""EXISTUJÍCÍ POPISKY Z OKOLÍ:
+{descriptions_text}
+
+DŮLEŽITÉ: NIKDY neopakuj informace z výše uvedených popisků!
+Vyber JINÝ zajímavý fakt o daném místě.
+"""
+        else:
+            nearby_line = ""
+
         template = custom_prompt or DESCRIBE_PROMPT_TEMPLATE
         image_line = "- Analyzuj přiložený obrázek\n"
         prompt = template.format(
             image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
+            nearby_descriptions_line=nearby_line,
         )
 
         response = self._run_codex(prompt, thumbnail_path)

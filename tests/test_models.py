@@ -43,6 +43,26 @@ class TestGPSCoordinates:
         coords = GPSCoordinates(latitude=50.042305, longitude=15.760400)
         assert str(coords) == "50.042305, 15.760400"
 
+    def test_distance_to_same_point(self):
+        """Test vzdálenosti ke stejnému bodu."""
+        coords = GPSCoordinates(latitude=50.0, longitude=15.0)
+        assert coords.distance_to(coords) == pytest.approx(0.0)
+
+    def test_distance_to_known_distance(self):
+        """Test vzdálenosti mezi Prahou a Brnem (~185 km)."""
+        prague = GPSCoordinates(latitude=50.0755, longitude=14.4378)
+        brno = GPSCoordinates(latitude=49.1951, longitude=16.6068)
+        distance = prague.distance_to(brno)
+        # Praha-Brno je cca 185 km vzdušnou čarou
+        assert 180 < distance < 190
+
+    def test_distance_to_short_distance(self):
+        """Test vzdálenosti v rámci města (~5 km)."""
+        point1 = GPSCoordinates(latitude=50.0755, longitude=14.4378)  # Praha centrum
+        point2 = GPSCoordinates(latitude=50.1000, longitude=14.4500)  # ~3 km severně
+        distance = point1.distance_to(point2)
+        assert 2 < distance < 5
+
 
 class TestLocation:
     """Testy pro Location."""

@@ -1,5 +1,6 @@
 """Modely pro lokaci a GPS souřadnice."""
 
+import math
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -58,6 +59,27 @@ class GPSCoordinates:
 
     def __str__(self) -> str:
         return f"{self.latitude:.6f}, {self.longitude:.6f}"
+
+    def distance_to(self, other: "GPSCoordinates") -> float:
+        """Vypočítá vzdálenost k jiným souřadnicím v km (haversine formula).
+
+        Args:
+            other: Cílové GPS souřadnice
+
+        Returns:
+            Vzdálenost v kilometrech
+        """
+        R = 6371  # Poloměr Země v km
+
+        lat1 = math.radians(self.latitude)
+        lat2 = math.radians(other.latitude)
+        dlat = math.radians(other.latitude - self.latitude)
+        dlng = math.radians(other.longitude - self.longitude)
+
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return R * c
 
 
 @dataclass

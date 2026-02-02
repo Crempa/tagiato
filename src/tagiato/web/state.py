@@ -231,6 +231,11 @@ class AppState:
         self.active_preset: Optional[str] = None  # key of active preset
         self.presets: Dict[str, dict] = {}  # loaded presets
 
+        # Context settings for nearby descriptions
+        self.context_enabled: bool = True
+        self.context_radius_km: float = 5.0
+        self.context_max_count: int = 5
+
     def get_photo(self, filename: str) -> Optional[PhotoState]:
         """Get photo by filename."""
         with self.lock:
@@ -391,6 +396,111 @@ class AppState:
             "active_preset": self.active_preset,
             "active_preset_name": self.presets[self.active_preset]["name"] if self.active_preset and self.active_preset in self.presets else None,
         }
+
+    def _estimate_gps_from_time(self, photo: PhotoState) -> Optional[GPSCoordinates]:
+        """Odhadne GPS z časově blízkých fotek (do 30 minut).
+
+        Args:
+            photo: Fotka bez GPS
+
+        Returns:
+            GPS z nejbližší časově blízké fotky, nebo None
+        """
+        if not photo.timestamp:
+            return None
+
+        MAX_TIME_GAP = 30 * 60  # 30 minut v sekundách
+        closest_time_diff = float("inf")
+        closest_gps = None
+
+        for other in self.get_all_photos():
+            if not other.gps or not other.timestamp:
+                continue
+            if other.filename == photo.filename:
+                continue
+
+            time_diff = abs((photo.timestamp - other.timestamp).total_seconds())
+            if time_diff <= MAX_TIME_GAP and time_diff < closest_time_diff:
+                closest_time_diff = time_diff
+                closest_gps = other.gps
+
+        return closest_gps
+
+    def get_nearby_descriptions(self, filename: str) -> List[tuple]:
+        """Vrátí popisky z fotek v okruhu.
+
+        Args:
+            filename: Název fotky pro kterou hledáme kontext
+
+        Returns:
+            Seznam tuplů (filename, description, distance_km) seřazený podle vzdálenosti
+        """
+        if not self.context_enabled:
+            return []
+
+        photo = self.get_photo(filename)
+        if not photo:
+            return []
+
+        # Získat GPS (vlastní nebo odhadnuté z času)
+        target_gps = photo.gps or self._estimate_gps_from_time(photo)
+        if not target_gps:
+            return []
+
+        nearby = []
+        for other in self.get_all_photos():
+            if other.filename == filename or not other.description:
+                continue
+
+            other_gps = other.gps or self._estimate_gps_from_time(other)
+            if not other_gps:
+                continue
+
+            distance = target_gps.distance_to(other_gps)
+            if distance <= self.context_radius_km:
+                nearby.append((other.filename, other.description, distance))
+
+        # Seřadit podle vzdálenosti, vzít max_count
+        nearby.sort(key=lambda x: x[2])
+        return nearby[: self.context_max_count]
+
+    def load_settings(self) -> None:
+        """Načte nastavení z .tagiato/settings.json."""
+        if not self.tagiato_dir:
+            return
+
+        settings_file = self.tagiato_dir / "settings.json"
+        if not settings_file.exists():
+            return
+
+        try:
+            with open(settings_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            self.context_enabled = data.get("context_enabled", True)
+            self.context_radius_km = data.get("context_radius_km", 5.0)
+            self.context_max_count = data.get("context_max_count", 5)
+
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    def save_settings(self) -> None:
+        """Uloží nastavení do .tagiato/settings.json."""
+        if not self.tagiato_dir:
+            return
+
+        settings_file = self.tagiato_dir / "settings.json"
+        data = {
+            "context_enabled": self.context_enabled,
+            "context_radius_km": self.context_radius_km,
+            "context_max_count": self.context_max_count,
+        }
+
+        try:
+            with open(settings_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except IOError:
+            pass
 
 
 # Global app state

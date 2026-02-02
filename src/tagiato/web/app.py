@@ -82,8 +82,9 @@ def create_app(
     app_state.locate_provider = locate_provider
     app_state.locate_model = locate_model
 
-    # Load prompt presets
+    # Load prompt presets and settings
     app_state.load_presets()
+    app_state.load_settings()
 
     # Templates
     templates_dir = Path(__file__).parent / "templates"

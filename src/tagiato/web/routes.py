@@ -54,6 +54,13 @@ class PromptsUpdate(BaseModel):
     locate_prompt: Optional[str] = None
 
 
+class ContextSettings(BaseModel):
+    """Context settings for nearby descriptions."""
+    enabled: bool = True
+    radius_km: float = 5.0
+    max_count: int = 5
+
+
 class PresetCreate(BaseModel):
     """Create a new preset."""
     key: str
@@ -182,6 +189,24 @@ async def _run_describe_task(task_id: str, filename: str, user_hint: str):
 
         provider = get_provider(app_state.describe_provider, app_state.describe_model)
 
+        # Get nearby descriptions context
+        nearby = app_state.get_nearby_descriptions(filename)
+        nearby_descriptions = [desc for _, desc, _ in nearby]
+
+        # Include own description if exists (for regeneration)
+        if photo.description:
+            nearby_descriptions.insert(0, photo.description)
+
+        # Log used context
+        if nearby_descriptions:
+            if photo.description:
+                context_info = f"vlastní popisek + " if nearby else "vlastní popisek"
+                if nearby:
+                    context_info += ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
+            else:
+                context_info = ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
+            log_buffer.add("info", f"Kontext z okolí: {context_info}")
+
         # Run blocking AI call in thread pool
         result = await asyncio.to_thread(
             provider.describe,
@@ -192,6 +217,7 @@ async def _run_describe_task(task_id: str, filename: str, user_hint: str):
             custom_prompt=app_state.describe_prompt,
             location_name=photo.location_name or None,
             user_hint=user_hint,
+            nearby_descriptions=nearby_descriptions if nearby_descriptions else None,
         )
 
         if result.description:
@@ -402,12 +428,32 @@ async def get_prompt_preview(filename: str, request: Request):
 
         user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
 
+        # Get nearby descriptions context for preview
+        nearby = app_state.get_nearby_descriptions(filename)
+        nearby_descriptions = [desc for _, desc, _ in nearby]
+
+        # Include own description if exists (for regeneration)
+        if photo.description:
+            nearby_descriptions.insert(0, photo.description)
+
+        if nearby_descriptions:
+            descriptions_text = "\n".join(f"- {desc}" for desc in nearby_descriptions)
+            nearby_line = f"""EXISTUJÍCÍ POPISKY Z OKOLÍ:
+{descriptions_text}
+
+DŮLEŽITÉ: NIKDY neopakuj informace z výše uvedených popisků!
+Vyber JINÝ zajímavý fakt o daném místě.
+"""
+        else:
+            nearby_line = ""
+
         template = app_state.describe_prompt or DESCRIBE_PROMPT_TEMPLATE
 
         prompt = template.format(
             image_line=image_line,
             context_lines="\n".join(context_lines) + "\n" if context_lines else "",
             user_hint_line=user_hint_line,
+            nearby_descriptions_line=nearby_line,
         )
     else:
         # Locate prompt
@@ -532,6 +578,25 @@ def _run_batch_processing():
                     if not photo.description and photo.ai_status != ProcessingStatus.DONE:
                         provider = get_provider(app_state.describe_provider, app_state.describe_model)
                         app_state.update_photo(filename, ai_status=ProcessingStatus.PROCESSING)
+
+                        # Get nearby descriptions context (updated for each photo in batch)
+                        nearby = app_state.get_nearby_descriptions(filename)
+                        nearby_descriptions = [desc for _, desc, _ in nearby]
+
+                        # Include own description if exists (for regeneration)
+                        if photo.description:
+                            nearby_descriptions.insert(0, photo.description)
+
+                        # Log used context
+                        if nearby_descriptions:
+                            if photo.description:
+                                context_info = f"vlastní popisek"
+                                if nearby:
+                                    context_info += " + " + ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
+                            else:
+                                context_info = ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
+                            log_buffer.add("info", f"[{filename}] Kontext z okolí: {context_info}")
+
                         result = provider.describe(
                             thumbnail_path=photo.thumbnail_path,
                             place_name=photo.place_name,
@@ -539,6 +604,7 @@ def _run_batch_processing():
                             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
                             custom_prompt=app_state.describe_prompt,
                             location_name=photo.location_name or None,
+                            nearby_descriptions=nearby_descriptions if nearby_descriptions else None,
                         )
 
                         if result.description:
@@ -764,6 +830,42 @@ async def activate_preset(key: str):
         "success": True,
         "describe_prompt": app_state.describe_prompt,
         "locate_prompt": app_state.locate_prompt,
+    }
+
+
+# --- Context settings endpoints ---
+
+@router.get("/api/settings/context")
+async def get_context_settings():
+    """Get context settings for nearby descriptions."""
+    return {
+        "enabled": app_state.context_enabled,
+        "radius_km": app_state.context_radius_km,
+        "max_count": app_state.context_max_count,
+    }
+
+
+@router.put("/api/settings/context")
+async def update_context_settings(data: ContextSettings):
+    """Update context settings for nearby descriptions."""
+    # Validate radius
+    if data.radius_km < 0.5 or data.radius_km > 20:
+        raise HTTPException(status_code=400, detail="Radius must be between 0.5 and 20 km")
+
+    # Validate max_count
+    if data.max_count < 1 or data.max_count > 10:
+        raise HTTPException(status_code=400, detail="Max count must be between 1 and 10")
+
+    app_state.context_enabled = data.enabled
+    app_state.context_radius_km = data.radius_km
+    app_state.context_max_count = data.max_count
+    app_state.save_settings()
+
+    return {
+        "success": True,
+        "enabled": app_state.context_enabled,
+        "radius_km": app_state.context_radius_km,
+        "max_count": app_state.context_max_count,
     }
 
 

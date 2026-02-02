@@ -188,6 +188,35 @@
                         </div>
                     </div>
                 </div>
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Kontext popisků</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="contextEnabled" checked>
+                        <label class="form-check-label" for="contextEnabled">
+                            Použít kontext z okolních fotek
+                        </label>
+                    </div>
+                    <small class="text-muted d-block mb-2">
+                        AI dostane existující popisky z blízkých fotek a vyhne se opakování stejných faktů.
+                    </small>
+                    <div class="row g-2">
+                        <div class="col">
+                            <label class="form-label small">Radius (km)</label>
+                            <input type="number" class="form-control form-control-sm" id="contextRadius"
+                                   min="0.5" max="20" step="0.5" value="5">
+                        </div>
+                        <div class="col">
+                            <label class="form-label small">Max popisků</label>
+                            <input type="number" class="form-control form-control-sm" id="contextMaxCount"
+                                   min="1" max="10" step="1" value="5">
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
                 <div class="alert alert-info small mb-0">
                     <i class="bi bi-info-circle me-1"></i>
                     <strong>Požadavky:</strong><br>
@@ -247,7 +276,7 @@
                     <div class="tab-pane fade show active" id="describe-pane" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <small class="text-muted">
-                                Placeholdery: <code>{image_line}</code>, <code>{context_lines}</code>, <code>{user_hint_line}</code>
+                                Placeholdery: <code>{image_line}</code>, <code>{context_lines}</code>, <code>{user_hint_line}</code>, <code>{nearby_descriptions_line}</code>
                             </small>
                             <button class="btn btn-outline-secondary btn-sm" id="btnResetDescribe">
                                 <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -581,9 +610,12 @@ function renderPhotoCard(photo) {
                                 </label>
                             </div>
                         </div>
-                        <button class="btn btn-success btn-sm btn-save"
-                                data-filename="${photo.filename}">
-                            <i class="bi bi-check-lg me-1"></i>Ulozit
+                        <button class="btn btn-outline-success btn-sm btn-save"
+                                data-filename="${photo.filename}"
+                                data-original-gps="${gpsValue}"
+                                data-original-desc="${(photo.description || '').replace(/"/g, '&quot;')}"
+                                data-original-loc="${(photo.location_name || '').replace(/"/g, '&quot;')}">
+                            <i class="bi bi-check-lg me-1"></i>Uložit
                         </button>
                     </div>
                 </div>
@@ -616,7 +648,7 @@ async function loadPhotos() {
     }
 }
 
-// Update single photo in UI - zachovává ručně upravené hodnoty
+// Update single photo in UI - zachovává ručně upravené hodnoty a původní data-original-* atributy
 function updatePhotoInUI(filename, updatedData) {
     const photo = photos.find(p => p.filename === filename);
     if (!photo) return;
@@ -625,11 +657,19 @@ function updatePhotoInUI(filename, updatedData) {
     const gpsInput = document.getElementById(`gps-${filename}`);
     const descInput = document.getElementById(`desc-${filename}`);
     const locInput = document.getElementById(`loc-${filename}`);
+    const saveBtn = document.querySelector(`.btn-save[data-filename="${filename}"]`);
 
     const userEdits = {
         gps: gpsInput?.value,
         description: descInput?.value,
         location_name: locInput?.value,
+    };
+
+    // Zachytit původní hodnoty z data atributů (pro detekci neuložených změn)
+    const originalValues = {
+        gps: saveBtn?.dataset.originalGps || '',
+        desc: saveBtn?.dataset.originalDesc || '',
+        loc: saveBtn?.dataset.originalLoc || '',
     };
 
     // Sloučit nová data do objektu
@@ -645,6 +685,7 @@ function updatePhotoInUI(filename, updatedData) {
     const newGpsInput = document.getElementById(`gps-${filename}`);
     const newDescInput = document.getElementById(`desc-${filename}`);
     const newLocInput = document.getElementById(`loc-${filename}`);
+    const newSaveBtn = document.querySelector(`.btn-save[data-filename="${filename}"]`);
 
     // Obnovit GPS pokud uživatel upravil a updatedData neobsahuje nové gps
     if (newGpsInput && userEdits.gps && !updatedData.gps) {
@@ -658,6 +699,16 @@ function updatePhotoInUI(filename, updatedData) {
     if (newLocInput && userEdits.location_name && !('location_name' in updatedData)) {
         newLocInput.value = userEdits.location_name;
     }
+
+    // Obnovit původní hodnoty v data atributech (pro správnou detekci neuložených změn)
+    if (newSaveBtn) {
+        newSaveBtn.dataset.originalGps = originalValues.gps;
+        newSaveBtn.dataset.originalDesc = originalValues.desc;
+        newSaveBtn.dataset.originalLoc = originalValues.loc;
+    }
+
+    // Zkontrolovat a aktualizovat vzhled tlačítka Uložit
+    checkUnsavedChanges(filename);
 }
 
 // Poll task status until done
@@ -841,8 +892,27 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
             });
 
             if (response.ok) {
-                showToast('Ulozeno do EXIF/XMP');
-                // Don't update UI - keep the form values as user entered them
+                showToast('Uloženo do EXIF/XMP');
+
+                // Update original values in data attributes
+                btn.dataset.originalGps = gpsInput.value;
+                btn.dataset.originalDesc = descInput.value;
+                btn.dataset.originalLoc = locInput.value;
+
+                // Reset button appearance
+                btn.classList.remove('btn-warning');
+                btn.classList.add('btn-outline-success');
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Uložit';
+
+                // Update in-memory photo state for context
+                const photo = photos.find(p => p.filename === filename);
+                if (photo) {
+                    photo.description = descInput.value;
+                    photo.location_name = locInput.value;
+                    if (payload.gps) {
+                        photo.gps = payload.gps;
+                    }
+                }
             } else {
                 const error = await response.json();
                 showToast('Chyba: ' + error.detail, 'error');
@@ -869,6 +939,38 @@ document.getElementById('photosList').addEventListener('click', async (e) => {
     }
 });
 
+// Check if photo has unsaved changes and update save button appearance
+function checkUnsavedChanges(filename) {
+    const saveBtn = document.querySelector(`.btn-save[data-filename="${filename}"]`);
+    if (!saveBtn) return;
+
+    const gpsInput = document.getElementById(`gps-${filename}`);
+    const descInput = document.getElementById(`desc-${filename}`);
+    const locInput = document.getElementById(`loc-${filename}`);
+
+    const originalGps = saveBtn.dataset.originalGps || '';
+    const originalDesc = saveBtn.dataset.originalDesc || '';
+    const originalLoc = saveBtn.dataset.originalLoc || '';
+
+    const currentGps = gpsInput?.value || '';
+    const currentDesc = descInput?.value || '';
+    const currentLoc = locInput?.value || '';
+
+    const hasChanges = currentGps !== originalGps ||
+                       currentDesc !== originalDesc ||
+                       currentLoc !== originalLoc;
+
+    if (hasChanges) {
+        saveBtn.classList.remove('btn-outline-success');
+        saveBtn.classList.add('btn-warning');
+        saveBtn.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Uložit změny';
+    } else {
+        saveBtn.classList.remove('btn-warning');
+        saveBtn.classList.add('btn-outline-success');
+        saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Uložit';
+    }
+}
+
 // Event delegation for checkboxes
 document.getElementById('photosList').addEventListener('change', (e) => {
     if (e.target.classList.contains('photo-select')) {
@@ -880,6 +982,20 @@ document.getElementById('photosList').addEventListener('change', (e) => {
         }
         updateProcessSelectedButton();
         updateSelectAllState();
+    }
+});
+
+// Event delegation for input changes (detect unsaved changes)
+document.getElementById('photosList').addEventListener('input', (e) => {
+    const target = e.target;
+    if (target.classList.contains('gps-input') ||
+        target.classList.contains('description-textarea') ||
+        target.classList.contains('location-input')) {
+
+        // Extract filename from input ID
+        const idParts = target.id.split('-');
+        const filename = idParts.slice(1).join('-'); // Handle filenames with dashes
+        checkUnsavedChanges(filename);
     }
 });
 
@@ -1309,8 +1425,13 @@ function updateModelOptions(providerSelect, modelSelect, currentModel) {
 
 async function loadProviderSettings() {
     try {
-        const response = await fetch('/api/settings/providers');
-        const settings = await response.json();
+        const [providerRes, contextRes] = await Promise.all([
+            fetch('/api/settings/providers'),
+            fetch('/api/settings/context'),
+        ]);
+
+        const settings = await providerRes.json();
+        const contextSettings = await contextRes.json();
 
         document.getElementById('describeProvider').value = settings.describe_provider;
         document.getElementById('locateProvider').value = settings.locate_provider;
@@ -1327,6 +1448,11 @@ async function loadProviderSettings() {
         );
 
         updateProviderSummary(settings);
+
+        // Load context settings
+        document.getElementById('contextEnabled').checked = contextSettings.enabled;
+        document.getElementById('contextRadius').value = contextSettings.radius_km;
+        document.getElementById('contextMaxCount').value = contextSettings.max_count;
     } catch (error) {
         console.error('Failed to load provider settings:', error);
     }
@@ -1357,19 +1483,33 @@ document.getElementById('btnSaveSettings').addEventListener('click', async () =>
         locate_model: document.getElementById('locateModel').value,
     };
 
-    try {
-        const response = await fetch('/api/settings/providers', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(settings)
-        });
+    const contextSettings = {
+        enabled: document.getElementById('contextEnabled').checked,
+        radius_km: parseFloat(document.getElementById('contextRadius').value),
+        max_count: parseInt(document.getElementById('contextMaxCount').value),
+    };
 
-        if (response.ok) {
+    try {
+        // Save both provider and context settings
+        const [providerRes, contextRes] = await Promise.all([
+            fetch('/api/settings/providers', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            }),
+            fetch('/api/settings/context', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(contextSettings)
+            }),
+        ]);
+
+        if (providerRes.ok && contextRes.ok) {
             updateProviderSummary(settings);
             bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
             showToast('Nastavení uloženo');
         } else {
-            const error = await response.json();
+            const error = await (providerRes.ok ? contextRes : providerRes).json();
             showToast('Chyba: ' + error.detail, 'error');
         }
     } catch (error) {
