@@ -165,11 +165,14 @@ def _load_photos(
             state.has_exif_description = True
             state.ai_status = ProcessingStatus.DONE
 
-        # Read location_name from XMP sidecar (if exists)
-        xmp_path = photo.path.with_suffix(".xmp")
-        location_name = _read_location_from_xmp(xmp_path)
-        if location_name:
-            state.location_name = location_name
+        # Read location_name - first from IPTC in JPEG (via exiftool), then XMP sidecar as fallback
+        if photo.location_name:
+            state.location_name = photo.location_name
+        else:
+            xmp_path = photo.path.with_suffix(".xmp")
+            location_name = _read_location_from_xmp(xmp_path)
+            if location_name:
+                state.location_name = location_name
 
         # Generate thumbnail path (generate on-demand)
         thumb_path = thumbnails_dir / f"{photo.path.stem}_thumb.jpg"

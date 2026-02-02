@@ -145,4 +145,27 @@ class PhotoScanner:
             except (ValueError, UnicodeDecodeError):
                 pass
 
+        # Fallback: zkusit UserComment v Exif IFD
+        exif_data = exif_dict.get("Exif", {})
+        user_comment = exif_data.get(piexif.ExifIFD.UserComment)
+
+        if user_comment and isinstance(user_comment, bytes):
+            try:
+                # UserComment má speciální formát: 8 bajtů encoding + text
+                # Podporované prefixy: "ASCII\x00\x00\x00", "UNICODE\x00", "JIS\x00\x00\x00\x00\x00"
+                if len(user_comment) > 8:
+                    encoding_prefix = user_comment[:8]
+                    content = user_comment[8:]
+
+                    if encoding_prefix.startswith(b"UNICODE"):
+                        # UTF-16 BE encoding
+                        return content.decode("utf-16-be").strip("\x00")
+                    elif encoding_prefix.startswith(b"ASCII"):
+                        return content.decode("ascii", errors="ignore").strip("\x00")
+                    else:
+                        # Zkusit UTF-8 jako fallback
+                        return content.decode("utf-8", errors="ignore").strip("\x00")
+            except (ValueError, UnicodeDecodeError):
+                pass
+
         return ""

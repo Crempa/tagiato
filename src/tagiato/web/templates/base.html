@@ -242,6 +242,45 @@
         body.log-open {
             padding-bottom: 300px;
         }
+
+        /* Copy arrows for input fields */
+        .copy-arrows {
+            display: flex;
+            flex-direction: column;
+            margin-left: 4px;
+            gap: 1px;
+        }
+
+        .copy-arrow-btn {
+            padding: 1px 5px;
+            font-size: 10px;
+            line-height: 1;
+            border: 1px solid #dee2e6;
+            background: #f8f9fa;
+            cursor: pointer;
+            color: #6c757d;
+            border-radius: 2px;
+        }
+
+        .copy-arrow-btn:hover {
+            background: #e9ecef;
+            color: #212529;
+        }
+
+        .input-with-arrows {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .input-with-arrows .form-control,
+        .input-with-arrows .input-group {
+            flex: 1;
+        }
+
+        .input-with-arrows .description-textarea + .copy-arrows {
+            align-self: flex-start;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>

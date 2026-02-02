@@ -385,6 +385,49 @@ function showToast(message, type = 'success') {
     toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
 
+// Copy value from one photo's input to neighbor (up or down)
+function copyValueToNeighbor(filename, fieldType, direction) {
+    const currentIndex = photos.findIndex(p => p.filename === filename);
+    if (currentIndex === -1) return;
+
+    const neighborIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (neighborIndex < 0 || neighborIndex >= photos.length) return;
+
+    const neighborFilename = photos[neighborIndex].filename;
+
+    // Get source value
+    const sourceInput = document.getElementById(`${fieldType}-${filename}`);
+    if (!sourceInput) return;
+
+    const value = sourceInput.value;
+
+    // Set target value
+    const targetInput = document.getElementById(`${fieldType}-${neighborFilename}`);
+    if (!targetInput) return;
+
+    targetInput.value = value;
+
+    // Visual feedback - briefly highlight the target input
+    targetInput.classList.add('border-success');
+    setTimeout(() => targetInput.classList.remove('border-success'), 500);
+}
+
+// Render copy arrows for an input field
+function renderCopyArrows(filename, fieldType) {
+    const currentIndex = photos.findIndex(p => p.filename === filename);
+    const isFirst = currentIndex === 0;
+    const isLast = currentIndex === photos.length - 1;
+
+    const upArrow = isFirst ? '' :
+        `<button type="button" class="copy-arrow-btn" onclick="copyValueToNeighbor('${filename}', '${fieldType}', 'up')" title="Kopírovat nahoru">↑</button>`;
+    const downArrow = isLast ? '' :
+        `<button type="button" class="copy-arrow-btn" onclick="copyValueToNeighbor('${filename}', '${fieldType}', 'down')" title="Kopírovat dolů">↓</button>`;
+
+    if (!upArrow && !downArrow) return '';
+
+    return `<div class="copy-arrows">${upArrow}${downArrow}</div>`;
+}
+
 // Render photo card
 function renderPhotoCard(photo) {
     const gpsStatus = photo.gps ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger';
@@ -440,43 +483,58 @@ function renderPhotoCard(photo) {
                 <div class="photo-details">
                     <div class="mb-3">
                         <label class="form-label">GPS</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control gps-input"
-                                   id="gps-${photo.filename}" value="${gpsValue}"
-                                   placeholder="lat, lng">
-                            <button class="btn btn-outline-secondary map-btn"
-                                    data-filename="${photo.filename}" title="Vybrat na mape">
-                                <i class="bi bi-map"></i>
-                            </button>
+                        <div class="input-with-arrows">
+                            <div class="input-group">
+                                <input type="text" class="form-control gps-input"
+                                       id="gps-${photo.filename}" value="${gpsValue}"
+                                       placeholder="lat, lng">
+                                <button class="btn btn-outline-secondary map-btn"
+                                        data-filename="${photo.filename}" title="Vybrat na mape">
+                                    <i class="bi bi-map"></i>
+                                </button>
+                            </div>
+                            ${renderCopyArrows(photo.filename, 'gps')}
                         </div>
                         <small class="text-muted">Zdroj: ${photo.gps_source || 'zadny'}</small>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Místo</label>
-                        <input type="text" class="form-control location-input"
-                               id="loc-${photo.filename}" value="${photo.location_name || ''}"
-                               placeholder="Název místa (z AI lokalizace)">
+                        <div class="input-with-arrows">
+                            <input type="text" class="form-control location-input"
+                                   id="loc-${photo.filename}" value="${photo.location_name || ''}"
+                                   placeholder="Název místa (z AI lokalizace)">
+                            ${renderCopyArrows(photo.filename, 'loc')}
+                        </div>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Popisek</label>
-                        <textarea class="form-control description-textarea"
-                                  id="desc-${photo.filename}">${photo.description || ''}</textarea>
+                        <div class="input-with-arrows">
+                            <textarea class="form-control description-textarea"
+                                      id="desc-${photo.filename}">${photo.description || ''}</textarea>
+                            ${renderCopyArrows(photo.filename, 'desc')}
+                        </div>
                     </div>
 
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small text-muted">Nápověda pro lokalizaci</label>
-                            <input type="text" class="form-control form-control-sm locate-hint-input"
-                                   id="locate-hint-${photo.filename}"
-                                   placeholder="např. 'tohle je Karlův most'">
+                            <div class="input-with-arrows">
+                                <input type="text" class="form-control form-control-sm locate-hint-input"
+                                       id="locate-hint-${photo.filename}"
+                                       placeholder="např. 'tohle je Karlův most'">
+                                ${renderCopyArrows(photo.filename, 'locate-hint')}
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label small text-muted">Nápověda pro popisek</label>
-                            <input type="text" class="form-control form-control-sm describe-hint-input"
-                                   id="describe-hint-${photo.filename}"
-                                   placeholder="např. 'fotka z naší svatby'">
+                            <div class="input-with-arrows">
+                                <input type="text" class="form-control form-control-sm describe-hint-input"
+                                       id="describe-hint-${photo.filename}"
+                                       placeholder="např. 'fotka z naší svatby'">
+                                ${renderCopyArrows(photo.filename, 'describe-hint')}
+                            </div>
                         </div>
                     </div>
 

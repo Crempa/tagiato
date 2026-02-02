@@ -130,12 +130,9 @@ class ExifWriter:
                     f"-GPSLongitudeRef={'E' if gps.longitude >= 0 else 'W'}",
                 ])
 
-        # Description - do ImageDescription i UserComment
+        # Description - pouze do UserComment
         if description is not None:
-            args.extend([
-                f"-ImageDescription={description}",
-                f"-UserComment={description}",
-            ])
+            args.append(f"-UserComment={description}")
 
         # Location name - do IPTC:Sub-location
         if location_name is not None:
@@ -227,19 +224,12 @@ class ExifWriter:
         }
 
     def _write_description(self, exif_dict: dict, description: str) -> None:
-        """Zapíše popisek do EXIF dict."""
-        # ImageDescription v IFD0
-        if "0th" not in exif_dict:
-            exif_dict["0th"] = {}
-
-        exif_dict["0th"][piexif.ImageIFD.ImageDescription] = description.encode("utf-8")
-
-        # Také zapsat do UserComment v Exif IFD pro lepší kompatibilitu
+        """Zapíše popisek do UserComment v Exif IFD."""
         if "Exif" not in exif_dict:
             exif_dict["Exif"] = {}
 
         # UserComment má speciální formát: 8 bajtů encoding + text
-        # Použijeme Unicode (UTF-8)
+        # Použijeme Unicode (UTF-16 BE)
         user_comment = b"UNICODE\x00" + description.encode("utf-16-be")
         exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment
 
