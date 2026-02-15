@@ -1,5 +1,6 @@
 """Hlavní CLI definice pro Tagiato."""
 
+import socket
 import webbrowser
 from pathlib import Path
 from typing import Optional
@@ -16,6 +17,21 @@ def version_callback(value: bool) -> None:
     if value:
         print(f"tagiato {__version__}")
         raise typer.Exit()
+
+
+def _find_available_port(start_port: int, max_attempts: int = 10) -> Optional[int]:
+    """Najde volný port počínaje start_port, zkusí max_attempts portů."""
+    for offset in range(max_attempts):
+        candidate = start_port + offset
+        if candidate > 65535:
+            break
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("0.0.0.0", candidate))
+                return candidate
+            except OSError:
+                continue
+    return None
 
 
 def main(
@@ -124,8 +140,17 @@ def main(
         locate_model=locate_model,
     )
 
+    # Find available port (try up to 10 ports starting from the requested one)
+    actual_port = _find_available_port(port)
+    if actual_port is None:
+        console.print(f"[red]Chyba:[/red] Nepodařilo se najít volný port (zkoušeny {port}–{port + 9})")
+        raise typer.Exit(1)
+
+    if actual_port != port:
+        console.print(f"[yellow]Port {port} je obsazený, používám {actual_port}[/yellow]")
+
     # Open browser
-    url = f"http://localhost:{port}"
+    url = f"http://localhost:{actual_port}"
     if not no_browser:
         console.print(f"[green]Otevírám prohlížeč:[/green] {url}")
         webbrowser.open(url)
@@ -138,7 +163,7 @@ def main(
 
     # Run server
     try:
-        uvicorn.run(fastapi_app, host="0.0.0.0", port=port, log_level="warning")
+        uvicorn.run(fastapi_app, host="0.0.0.0", port=actual_port, log_level="warning")
     except KeyboardInterrupt:
         console.print("\n[yellow]Server ukončen[/yellow]")
 
