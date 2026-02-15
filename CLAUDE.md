@@ -23,17 +23,16 @@ make clean
 
 ## Architecture Overview
 
-Tagiato is a CLI tool for enriching JPEG photos with GPS coordinates and AI-generated descriptions.
+Tagiato is a web-based tool for enriching JPEG photos with GPS coordinates and AI-generated descriptions. It is launched via `tagiato <photos_dir>` which starts a FastAPI web server.
 
 ### Core Components
 
-**Pipeline** (`core/pipeline.py`) - Main orchestrator that coordinates the processing flow:
-1. Scan photos → Extract EXIF timestamps and existing GPS
-2. Load Google Timeline JSON → Parse location history
-3. Match locations → Pair photos to GPS via timestamps (±max_time_gap minutes)
-4. Generate thumbnails → Resize for AI processing
-5. AI description → Claude/Gemini/OpenAI generates description + optionally refines GPS
-6. Write EXIF/XMP → Persist metadata back to photos
+**CLI Entry Point** (`cli/main.py`) - Typer-based launcher that starts the web server with configurable options (provider, model, port, timeline).
+
+**Web Interface** (`web/`) - FastAPI application:
+- `app.py` - App factory, creates FastAPI app with configuration
+- `routes.py` - All API endpoints (photo management, AI operations, batch processing, settings)
+- `state.py` - In-memory state management for the web session
 
 **AI Provider Abstraction** (`services/ai_provider.py`) - Supports three providers:
 - Claude: `claude --dangerously-skip-permissions --model X --print`
@@ -56,8 +55,6 @@ ThumbnailGenerator (resize for AI)
 AIProvider.describe() → JSON {description, refined_gps}
      ↓
 ExifWriter / XmpWriter (persist to files)
-     ↓
-descriptions.md (structured markdown output)
 ```
 
 ### State Management
@@ -74,7 +71,7 @@ descriptions.md (structured markdown output)
 
 ### Web Interface
 
-`tagiato serve` starts FastAPI server with:
+`tagiato <photos_dir>` starts FastAPI server with:
 - Photo gallery with thumbnails
 - Per-photo AI describe/locate buttons
 - Batch processing with progress tracking
@@ -85,7 +82,6 @@ descriptions.md (structured markdown output)
 
 - **Prompt templates** in `ai_provider.py` expect JSON response with optional markdown code blocks
 - **JSON parsing** handles ````json` blocks, raw JSON, or JSON embedded in text
-- **Progress callbacks** throughout pipeline for CLI/web progress reporting
 - **Subprocess timeouts** of 120s for all AI CLI calls
 
 ## Development Guidelines

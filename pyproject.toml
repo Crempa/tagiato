@@ -1,7 +1,7 @@
 [project]
 name = "tagiato"
 dynamic = ["version"]
-description = "CLI nástroj pro automatické přidání GPS souřadnic a AI-generovaných popisků k JPEG fotografiím"
+description = "Nástroj pro automatické přidání GPS souřadnic a AI-generovaných popisků k JPEG fotografiím"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -11,7 +11,7 @@ authors = [
 keywords = ["photos", "gps", "exif", "ai", "claude", "geolocation"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",

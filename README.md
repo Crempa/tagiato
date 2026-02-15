@@ -1,6 +1,6 @@
 # Tagiato
 
-CLI nástroj pro automatické přidání GPS souřadnic a AI-generovaných popisků k JPEG fotografiím exportovaným z Luminar.
+Nástroj pro automatické přidání GPS souřadnic a AI-generovaných popisků k JPEG fotografiím exportovaným z Luminar.
 
 ## Instalace
 
@@ -10,64 +10,36 @@ pipx install tagiato
 
 ## Použití
 
-### Základní workflow
-
 ```bash
-# Zpracovat fotky s GPS z Google Timeline
-tagiato enrich ~/Photos/Trip --timeline location-history.json
+# Spustit webové rozhraní pro složku s fotkami
+tagiato ~/Photos/Trip
 
-# Zkontrolovat výsledky
-cat ~/Photos/Trip/descriptions.md
+# S GPS daty z Google Timeline
+tagiato ~/Photos/Trip --timeline location-history.json
 
-# Ověřit EXIF pomocí exiftool
-exiftool ~/Photos/Trip/IMG_001.jpg
+# S vlastním portem a bez automatického otevření prohlížeče
+tagiato ~/Photos/Trip --port 3000 --no-browser
+
+# Volba AI providera a modelu
+tagiato ~/Photos/Trip --describe-provider gemini --describe-model flash
 ```
 
-### Příkazy
+## Webové rozhraní
 
-```bash
-# Celá pipeline - GPS matching, geocoding, AI popisky
-tagiato enrich ~/Photos/Trip --timeline location-history.json
+Po spuštění se otevře prohlížeč s galérií fotek, kde můžete:
 
-# S parametry
-tagiato enrich ~/Photos/Trip \
-  --timeline location-history.json \
-  --max-time-gap 30 \
-  --model sonnet \
-  --thumbnail-size 1024
-
-# Aplikace editovaného descriptions.md zpět do EXIF/XMP
-tagiato apply ~/Photos/Trip
-
-# Export do CSV nebo XMP
-tagiato export ~/Photos/Trip --format csv
-tagiato export ~/Photos/Trip --format xmp
-
-# Kontrola stavu zpracování
-tagiato status ~/Photos/Trip
-
-# Nápověda
-tagiato --help
-```
-
-## Workflow s ruční editací
-
-1. Spusťte `tagiato enrich` pro zpracování fotek
-2. Otevřete a upravte `descriptions.md` podle potřeby
-3. Spusťte `tagiato apply` pro aplikaci změn zpět do EXIF a XMP
+- Procházet a filtrovat fotky
+- Generovat AI popisky jednotlivě nebo hromadně
+- Lokalizovat fotky pomocí AI (detekce místa z fotky)
+- Editovat GPS souřadnice a popisky
+- Přiřazovat GPS z Google Timeline podle časových razítek
+- Ukládat metadata zpět do EXIF
 
 ## Požadavky
 
-- Python 3.8+
-- [Claude CLI](https://github.com/anthropics/claude-cli) nainstalovaný a v PATH
+- Python 3.10+
+- [Claude CLI](https://github.com/anthropics/claude-cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli) nebo [OpenAI Codex CLI](https://github.com/openai/codex) nainstalovaný a v PATH
 - Google Timeline JSON export (volitelné, pro GPS matching)
-
-## Výstupy
-
-- **EXIF metadata** - GPS souřadnice a popisky zapsané do JPEG
-- **XMP sidecar** - `.xmp` soubory pro každou fotku
-- **descriptions.md** - Markdown soubor se všemi popisky, strukturovaný po dnech
-- **CSV export** - Volitelný export do tabulkového formátu
 
 ## Licence
 
