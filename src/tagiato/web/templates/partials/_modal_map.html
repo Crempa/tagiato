@@ -1,0 +1,22 @@
+<!-- Map Modal -->
+<div class="modal fade" id="mapModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-i18n="map.title">Select location</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="map-search-container position-relative">
+                    <input type="text" class="form-control" id="mapSearch" data-i18n-placeholder="map.search_placeholder" placeholder="Search place...">
+                    <div class="search-results d-none" id="searchResults"></div>
+                </div>
+                <div id="map"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="map.btn_cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmLocation" data-i18n="map.btn_confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>

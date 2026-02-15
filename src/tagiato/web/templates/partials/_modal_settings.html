@@ -1,0 +1,87 @@
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-gear me-2"></i><span data-i18n="settings.title">AI Provider Settings</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold" data-i18n="settings.describe_label">Description generation</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <select class="form-select" id="describeProvider">
+                                <option value="claude">Claude</option>
+                                <option value="gemini">Gemini</option>
+                                <option value="openai">OpenAI Codex</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <select class="form-select" id="describeModel">
+                                <!-- Filled by JS based on provider -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" data-i18n="settings.locate_label">Localization</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <select class="form-select" id="locateProvider">
+                                <option value="claude">Claude</option>
+                                <option value="gemini">Gemini</option>
+                                <option value="openai">OpenAI Codex</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <select class="form-select" id="locateModel">
+                                <!-- Filled by JS based on provider -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold" data-i18n="settings.context_label">Description context</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="contextEnabled" checked>
+                        <label class="form-check-label" for="contextEnabled" data-i18n="settings.context_enabled">
+                            Use context from nearby photos
+                        </label>
+                    </div>
+                    <small class="text-muted d-block mb-2" data-i18n="settings.context_help">
+                        AI will receive existing descriptions from nearby photos and avoid repeating the same facts.
+                    </small>
+                    <div class="row g-2">
+                        <div class="col">
+                            <label class="form-label small" data-i18n="settings.context_radius">Radius (km)</label>
+                            <input type="number" class="form-control form-control-sm" id="contextRadius"
+                                   min="0.5" max="20" step="0.5" value="5">
+                        </div>
+                        <div class="col">
+                            <label class="form-label small" data-i18n="settings.context_max_count">Max descriptions</label>
+                            <input type="number" class="form-control form-control-sm" id="contextMaxCount"
+                                   min="1" max="10" step="1" value="5">
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="alert alert-info small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong data-i18n="settings.requirements">Requirements:</strong><br>
+                    Claude: CLI <code>claude</code><br>
+                    Gemini: CLI <code>gemini</code><br>
+                    OpenAI: CLI <code>codex</code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="settings.btn_cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSaveSettings" data-i18n="settings.btn_save">Save</button>
+            </div>
+        </div>
+    </div>
+</div>

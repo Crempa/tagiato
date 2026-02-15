@@ -1,0 +1,78 @@
+<!-- Prompts Modal -->
+<div class="modal fade" id="promptsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-square-text me-2"></i><span data-i18n="prompts.title">Edit AI Prompts</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Preset selector -->
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <label class="form-label mb-0 me-2" data-i18n="prompts.preset_label">Preset:</label>
+                    <select class="form-select form-select-sm" id="presetSelect" style="width: auto; min-width: 200px;">
+                        <option value="" data-i18n="prompts.preset_none">(none)</option>
+                    </select>
+                    <button class="btn btn-outline-primary btn-sm" id="btnSaveAsPreset">
+                        <i class="bi bi-save me-1"></i><span data-i18n="prompts.btn_save_as">Save as...</span>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" id="btnDeletePreset">
+                        <i class="bi bi-trash me-1"></i><span data-i18n="prompts.btn_delete">Delete</span>
+                    </button>
+                </div>
+
+                <!-- Tabs -->
+                <ul class="nav nav-tabs" id="promptsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="describe-tab" data-bs-toggle="tab" data-bs-target="#describe-pane" type="button" role="tab">
+                            <i class="bi bi-stars me-1"></i><span data-i18n="prompts.tab_describe">Descriptions</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="locate-tab" data-bs-toggle="tab" data-bs-target="#locate-pane" type="button" role="tab">
+                            <i class="bi bi-geo-alt me-1"></i><span data-i18n="prompts.tab_locate">Localization</span>
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab content -->
+                <div class="tab-content pt-3" id="promptsTabContent">
+                    <!-- Describe prompt -->
+                    <div class="tab-pane fade show active" id="describe-pane" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">
+                                <span data-i18n="prompts.placeholders_label">Placeholders:</span> <code>{image_line}</code>, <code>{context_lines}</code>, <code>{user_hint_line}</code>, <code>{nearby_descriptions_line}</code>
+                            </small>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnResetDescribe">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i><span data-i18n="prompts.btn_reset">Reset</span>
+                            </button>
+                        </div>
+                        <textarea class="form-control font-monospace" id="describePromptText" rows="18" style="font-size: 0.85rem;"></textarea>
+                    </div>
+
+                    <!-- Locate prompt -->
+                    <div class="tab-pane fade" id="locate-pane" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">
+                                <span data-i18n="prompts.placeholders_label">Placeholders:</span> <code>{image_line}</code>, <code>{timestamp}</code>, <code>{user_hint_line}</code>
+                            </small>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnResetLocate">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i><span data-i18n="prompts.btn_reset">Reset</span>
+                            </button>
+                        </div>
+                        <textarea class="form-control font-monospace" id="locatePromptText" rows="18" style="font-size: 0.85rem;"></textarea>
+                    </div>
+                </div>
+
+                <div class="alert alert-info small mt-3 mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <span data-i18n="prompts.session_notice">Changes apply only to the current session. Use "Save as..." to save a preset.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="prompts.btn_cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSavePrompts" data-i18n="prompts.btn_save_session">Save session</button>
+            </div>
+        </div>
+    </div>
+</div>

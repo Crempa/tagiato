@@ -1,0 +1,120 @@
+<div class="app-header">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <h1 class="h4 mb-0">
+                    <i class="bi bi-images me-2"></i>{{ folder_name }}
+                </h1>
+                <small class="text-muted" data-i18n="header.photos_count" data-i18n-params='{"count": "{{ photos_count }}"}'>{{ photos_count }} photos</small>
+            </div>
+            <div class="col-auto ms-auto d-flex gap-2 align-items-center flex-wrap">
+                <!-- Batch controls -->
+                <div id="batchControls" class="d-flex gap-2 flex-wrap">
+                    <!-- Descriptions dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" id="btnDescribeDropdown">
+                            <i class="bi bi-stars me-1"></i><span data-i18n="header.btn_descriptions">Descriptions</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnDescribeAll" data-i18n="header.btn_generate_all">Generate all</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnDescribeSelected" data-i18n="header.btn_generate_selected">Generate selected</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Locate dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" id="btnLocateDropdown">
+                            <i class="bi bi-geo-alt me-1"></i><span data-i18n="header.btn_locate">Locate</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnLocateAll" data-i18n="header.btn_locate_all">Locate all</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnLocateSelected" data-i18n="header.btn_locate_selected">Locate selected</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Save dropdown -->
+                    <div class="btn-group">
+                        <button class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" id="btnSaveDropdown">
+                            <i class="bi bi-check-lg me-1"></i><span data-i18n="header.btn_save">Save</span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" id="btnSaveAll" data-i18n="header.btn_save_all">Save all</a></li>
+                            <li><a class="dropdown-item" href="#" id="btnSaveSelected" data-i18n="header.btn_save_selected">Save selected</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Stop button -->
+                    <button class="btn btn-danger d-none" id="btnStop">
+                        <i class="bi bi-stop-fill me-1"></i><span data-i18n="header.btn_stop">Stop</span>
+                    </button>
+                </div>
+
+                <!-- Batch status -->
+                <div class="batch-status" id="batchStatus">
+                    <span class="badge bg-info">
+                        <i class="bi bi-hourglass-split me-1 status-processing"></i>
+                        <span id="batchStatusText" data-i18n="header.batch_processing">Processing...</span>
+                    </span>
+                </div>
+
+                <!-- Prompts settings -->
+                <button class="btn btn-outline-secondary btn-sm" id="btnPrompts" data-i18n-title="prompts.btn_title" title="Edit AI prompts" data-bs-toggle="modal" data-bs-target="#promptsModal">
+                    <i class="bi bi-chat-square-text me-1"></i><span data-i18n="header.btn_prompts">Prompts</span>
+                    <span class="badge bg-info ms-1 d-none" id="presetBadge"></span>
+                </button>
+
+                <!-- Provider settings -->
+                <button class="btn btn-outline-secondary btn-sm" id="btnSettings" data-i18n-title="settings.title" title="AI Provider Settings" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class="bi bi-gear me-1"></i><span id="providerSummary">{{ describe_provider }}/{{ locate_provider }}</span>
+                </button>
+
+                <!-- Language switcher -->
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="bi bi-translate"></i> <span id="currentLang"></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" data-lang="en">English</a></li>
+                        <li><a class="dropdown-item" href="#" data-lang="cs">Čeština</a></li>
+                    </ul>
+                </div>
+
+                <!-- Log toggle -->
+                <button class="btn btn-outline-secondary btn-sm" id="btnToggleLog" title="Show/hide log">
+                    <i class="bi bi-terminal me-1"></i><span data-i18n="header.btn_log">Log</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="row mt-2">
+            <div class="col-auto">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input photo-checkbox" type="checkbox" id="selectAll">
+                    <label class="form-check-label" for="selectAll" data-i18n="header.select_all">Select all</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="filter" id="filterAll" value="all" checked>
+                    <label class="btn btn-outline-secondary" for="filterAll" data-i18n="filter.all">All</label>
+
+                    <input type="radio" class="btn-check" name="filter" id="filterWithDesc" value="with_description">
+                    <label class="btn btn-outline-secondary" for="filterWithDesc" data-i18n="filter.with_description">With description</label>
+
+                    <input type="radio" class="btn-check" name="filter" id="filterWithoutDesc" value="without_description">
+                    <label class="btn btn-outline-secondary" for="filterWithoutDesc" data-i18n="filter.without_description">Without description</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="sort" id="sortDate" value="date" checked>
+                    <label class="btn btn-outline-secondary" for="sortDate" data-i18n="sort.by_date">By date</label>
+
+                    <input type="radio" class="btn-check" name="sort" id="sortName" value="name">
+                    <label class="btn btn-outline-secondary" for="sortName" data-i18n="sort.by_name">By name</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

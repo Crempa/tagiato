@@ -1,0 +1,21 @@
+<!-- Save Preset Modal -->
+<div class="modal fade" id="savePresetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" data-i18n="preset.save_title">Save as preset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="presetName" class="form-label" data-i18n="preset.name_label">Preset name</label>
+                    <input type="text" class="form-control" id="presetName" data-i18n-placeholder="preset.name_placeholder" placeholder="e.g. Vacation 2024">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="preset.btn_cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmSavePreset" data-i18n="preset.btn_save">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
