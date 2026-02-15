@@ -447,6 +447,9 @@ function copyValueToNeighbor(filename, fieldType, direction) {
 
     targetInput.value = value;
 
+    // Trigger unsaved changes detection on the target photo
+    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+
     // Visual feedback - briefly highlight the target input
     targetInput.classList.add('border-success');
     setTimeout(() => targetInput.classList.remove('border-success'), 500);
