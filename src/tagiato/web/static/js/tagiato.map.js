@@ -98,6 +98,7 @@ document.getElementById('btnConfirmLocation').addEventListener('click', () => {
     const gpsInput = document.getElementById(`gps-${currentMapPhotoFilename}`);
     if (gpsInput) {
         gpsInput.value = `${mapSelectedCoords.lat.toFixed(6)}, ${mapSelectedCoords.lng.toFixed(6)}`;
+        gpsInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     bootstrap.Modal.getInstance(document.getElementById('mapModal')).hide();
