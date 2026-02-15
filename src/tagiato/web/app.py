@@ -93,6 +93,10 @@ def create_app(
     # Load photos
     _load_photos(photos_dir, timeline_path, thumbnails_dir)
 
+    # Static files
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
     # Include API routes
     app.include_router(router)
 
