@@ -1,4 +1,4 @@
-"""Hlavní CLI definice pro Tagiato."""
+"""Main CLI definition for Tagiato."""
 
 import socket
 import webbrowser
@@ -20,7 +20,7 @@ def version_callback(value: bool) -> None:
 
 
 def _find_available_port(start_port: int, max_attempts: int = 10) -> Optional[int]:
-    """Najde volný port počínaje start_port, zkusí max_attempts portů."""
+    """Find an available port starting from start_port, trying up to max_attempts ports."""
     for offset in range(max_attempts):
         candidate = start_port + offset
         if candidate > 65535:
@@ -37,7 +37,7 @@ def _find_available_port(start_port: int, max_attempts: int = 10) -> Optional[in
 def main(
     photos_dir: Path = typer.Argument(
         ...,
-        help="Cesta ke složce s fotkami",
+        help="Path to the photos directory",
         exists=True,
         file_okay=False,
         dir_okay=True,
@@ -47,7 +47,7 @@ def main(
         None,
         "--timeline",
         "-t",
-        help="Cesta k Google Timeline JSON souboru",
+        help="Path to Google Timeline JSON file",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -56,35 +56,35 @@ def main(
     describe_provider: str = typer.Option(
         "claude",
         "--describe-provider",
-        help="Provider pro generování popisků (claude/gemini/openai)",
+        help="Provider for generating descriptions (claude/gemini/openai)",
     ),
     describe_model: str = typer.Option(
         "sonnet",
         "--describe-model",
-        help="Model pro popisky (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
+        help="Model for descriptions (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
     ),
     locate_provider: str = typer.Option(
         "claude",
         "--locate-provider",
-        help="Provider pro lokalizaci (claude/gemini/openai)",
+        help="Provider for localization (claude/gemini/openai)",
     ),
     locate_model: str = typer.Option(
         "sonnet",
         "--locate-model",
-        help="Model pro lokalizaci (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
+        help="Model for localization (claude: sonnet/opus/haiku, gemini: flash/pro/ultra, openai: o3/o4-mini/gpt-5.2)",
     ),
     port: int = typer.Option(
         8000,
         "--port",
         "-p",
-        help="Port pro webový server",
+        help="Port for the web server",
         min=1024,
         max=65535,
     ),
     no_browser: bool = typer.Option(
         False,
         "--no-browser",
-        help="Neotevírat automaticky prohlížeč",
+        help="Do not automatically open the browser",
     ),
     version: bool = typer.Option(
         None,
@@ -92,13 +92,13 @@ def main(
         "-v",
         callback=version_callback,
         is_eager=True,
-        help="Zobrazí verzi programu",
+        help="Show program version",
     ),
 ) -> None:
-    """Spustí webové rozhraní pro interaktivní zpracování fotek.
+    """Start the web interface for interactive photo processing.
 
-    Umožňuje procházet fotky, přidávat GPS souřadnice a generovat AI popisky
-    s plnou kontrolou nad procesem.
+    Allows browsing photos, adding GPS coordinates, and generating AI descriptions
+    with full control over the process.
     """
     try:
         import uvicorn
@@ -106,27 +106,27 @@ def main(
         from tagiato.core.logger import set_web_mode
         from tagiato.services.exif_writer import is_exiftool_available
     except ImportError as e:
-        console.print("[red]Chyba:[/red] Web závislosti nejsou nainstalované.")
-        console.print("Nainstalujte je pomocí: pip install tagiato[web]")
+        console.print("[red]Error:[/red] Web dependencies are not installed.")
+        console.print("Install them using: pip install tagiato[web]")
         raise typer.Exit(1)
 
-    # Aktivovat web logging
+    # Activate web logging
     set_web_mode(True)
 
     console.print(f"[blue]Tagiato Web UI[/blue]")
-    console.print(f"  Složka: {photos_dir}")
+    console.print(f"  Directory: {photos_dir}")
     if timeline:
         console.print(f"  Timeline: {timeline}")
-    console.print(f"  Popisky: {describe_provider}/{describe_model}")
-    console.print(f"  Lokalizace: {locate_provider}/{locate_model}")
+    console.print(f"  Descriptions: {describe_provider}/{describe_model}")
+    console.print(f"  Localization: {locate_provider}/{locate_model}")
     console.print(f"  Port: {port}")
 
-    # Kontrola exiftool
+    # Check exiftool
     if not is_exiftool_available():
         console.print()
-        console.print("[yellow]⚠ Varování:[/yellow] exiftool není nainstalován")
-        console.print("  Zápis názvu lokality (IPTC:Sub-location) nebude dostupný.")
-        console.print("  Instalace: brew install exiftool (macOS) nebo apt install libimage-exiftool-perl (Linux)")
+        console.print("[yellow]⚠ Warning:[/yellow] exiftool is not installed")
+        console.print("  Writing location name (IPTC:Sub-location) will not be available.")
+        console.print("  Install: brew install exiftool (macOS) or apt install libimage-exiftool-perl (Linux)")
 
     console.print()
 
@@ -143,29 +143,29 @@ def main(
     # Find available port (try up to 10 ports starting from the requested one)
     actual_port = _find_available_port(port)
     if actual_port is None:
-        console.print(f"[red]Chyba:[/red] Nepodařilo se najít volný port (zkoušeny {port}–{port + 9})")
+        console.print(f"[red]Error:[/red] Could not find an available port (tried {port}–{port + 9})")
         raise typer.Exit(1)
 
     if actual_port != port:
-        console.print(f"[yellow]Port {port} je obsazený, používám {actual_port}[/yellow]")
+        console.print(f"[yellow]Port {port} is occupied, using {actual_port}[/yellow]")
 
     # Open browser
     url = f"http://localhost:{actual_port}"
     if not no_browser:
-        console.print(f"[green]Otevírám prohlížeč:[/green] {url}")
+        console.print(f"[green]Opening browser:[/green] {url}")
         webbrowser.open(url)
     else:
-        console.print(f"[green]Aplikace běží na:[/green] {url}")
+        console.print(f"[green]Application running at:[/green] {url}")
 
     console.print()
-    console.print("[dim]Ctrl+C pro ukončení[/dim]")
+    console.print("[dim]Ctrl+C to exit[/dim]")
     console.print()
 
     # Run server
     try:
         uvicorn.run(fastapi_app, host="0.0.0.0", port=actual_port, log_level="warning")
     except KeyboardInterrupt:
-        console.print("\n[yellow]Server ukončen[/yellow]")
+        console.print("\n[yellow]Server stopped[/yellow]")
 
 
 app = typer.Typer()

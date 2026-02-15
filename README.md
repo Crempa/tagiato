@@ -1,46 +1,46 @@
 # Tagiato
 
-Nástroj pro automatické přidání GPS souřadnic a AI-generovaných popisků k JPEG fotografiím exportovaným z Luminar.
+A tool for automatically adding GPS coordinates and AI-generated descriptions to JPEG photos exported from Luminar.
 
-## Instalace
+## Installation
 
 ```bash
 pipx install tagiato
 ```
 
-## Použití
+## Usage
 
 ```bash
-# Spustit webové rozhraní pro složku s fotkami
+# Start the web interface for a photos directory
 tagiato ~/Photos/Trip
 
-# S GPS daty z Google Timeline
+# With GPS data from Google Timeline
 tagiato ~/Photos/Trip --timeline location-history.json
 
-# S vlastním portem a bez automatického otevření prohlížeče
+# With a custom port and without automatically opening the browser
 tagiato ~/Photos/Trip --port 3000 --no-browser
 
-# Volba AI providera a modelu
+# Choose AI provider and model
 tagiato ~/Photos/Trip --describe-provider gemini --describe-model flash
 ```
 
-## Webové rozhraní
+## Web Interface
 
-Po spuštění se otevře prohlížeč s galérií fotek, kde můžete:
+After launching, a browser opens with a photo gallery where you can:
 
-- Procházet a filtrovat fotky
-- Generovat AI popisky jednotlivě nebo hromadně
-- Lokalizovat fotky pomocí AI (detekce místa z fotky)
-- Editovat GPS souřadnice a popisky
-- Přiřazovat GPS z Google Timeline podle časových razítek
-- Ukládat metadata zpět do EXIF
+- Browse and filter photos
+- Generate AI descriptions individually or in batch
+- Locate photos using AI (place detection from photo)
+- Edit GPS coordinates and descriptions
+- Assign GPS from Google Timeline based on timestamps
+- Save metadata back to EXIF
 
-## Požadavky
+## Requirements
 
 - Python 3.10+
-- [Claude CLI](https://github.com/anthropics/claude-cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli) nebo [OpenAI Codex CLI](https://github.com/openai/codex) nainstalovaný a v PATH
-- Google Timeline JSON export (volitelné, pro GPS matching)
+- [Claude CLI](https://github.com/anthropics/claude-cli), [Gemini CLI](https://github.com/google-gemini/gemini-cli), or [OpenAI Codex CLI](https://github.com/openai/codex) installed and in PATH
+- Google Timeline JSON export (optional, for GPS matching)
 
-## Licence
+## License
 
 MIT

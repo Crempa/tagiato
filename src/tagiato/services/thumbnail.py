@@ -1,4 +1,4 @@
-"""Generování náhledů fotek."""
+"""Generating photo thumbnails."""
 
 import warnings
 from pathlib import Path
@@ -7,66 +7,66 @@ from PIL import Image, ExifTags
 
 
 class ThumbnailGenerator:
-    """Generuje náhledy fotek pro Claude."""
+    """Generates photo thumbnails for Claude."""
 
     def __init__(self, output_dir: Path, size: int = 1024):
         """
         Args:
-            output_dir: Složka pro ukládání náhledů
-            size: Kratší strana náhledu v pixelech
+            output_dir: Directory for storing thumbnails
+            size: Shorter side of the thumbnail in pixels
         """
         self.output_dir = output_dir
         self.size = size
 
     def generate(self, photo_path: Path) -> Path:
-        """Vygeneruje náhled fotky.
+        """Generates a photo thumbnail.
 
         Args:
-            photo_path: Cesta k originální fotce
+            photo_path: Path to the original photo
 
         Returns:
-            Cesta k náhledu
+            Path to the thumbnail
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         thumbnail_path = self.output_dir / f"{photo_path.stem}_thumb.jpg"
 
-        # Potlačit warningy o corrupt EXIF datech
+        # Suppress warnings about corrupt EXIF data
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="Corrupt EXIF data")
             img = Image.open(photo_path)
 
         with img:
-            # Aplikovat EXIF orientaci
+            # Apply EXIF orientation
             img = self._apply_exif_orientation(img)
 
-            # Vypočítat novou velikost
+            # Calculate new size
             width, height = img.size
             if width < height:
-                # Výška je delší strana
+                # Height is the longer side
                 new_width = self.size
                 new_height = int(height * (self.size / width))
             else:
-                # Šířka je delší strana
+                # Width is the longer side
                 new_height = self.size
                 new_width = int(width * (self.size / height))
 
-            # Změnit velikost
+            # Resize
             img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-            # Uložit jako JPEG
+            # Save as JPEG
             img.save(thumbnail_path, "JPEG", quality=85, optimize=True)
 
         return thumbnail_path
 
     def _apply_exif_orientation(self, img: Image.Image) -> Image.Image:
-        """Aplikuje EXIF orientaci na obrázek."""
+        """Applies EXIF orientation to the image."""
         try:
             exif = img._getexif()
             if exif is None:
                 return img
 
-            # Najít tag orientace
+            # Find the orientation tag
             orientation_key = None
             for key, value in ExifTags.TAGS.items():
                 if value == "Orientation":
@@ -78,7 +78,7 @@ class ThumbnailGenerator:
 
             orientation = exif[orientation_key]
 
-            # Aplikovat transformaci podle orientace
+            # Apply transformation based on orientation
             if orientation == 2:
                 img = img.transpose(Image.FLIP_LEFT_RIGHT)
             elif orientation == 3:

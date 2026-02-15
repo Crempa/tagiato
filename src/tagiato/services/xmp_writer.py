@@ -1,4 +1,4 @@
-"""Generování XMP sidecar souborů."""
+"""Generating XMP sidecar files."""
 
 from pathlib import Path
 from typing import Optional
@@ -9,7 +9,7 @@ from tagiato.models.location import GPSCoordinates
 
 
 class XmpWriter:
-    """Vytváří XMP sidecar soubory pro fotky."""
+    """Creates XMP sidecar files for photos."""
 
     XMP_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Tagiato">
@@ -45,16 +45,16 @@ class XmpWriter:
         description: Optional[str] = None,
         location_name: Optional[str] = None,
     ) -> Path:
-        """Vytvoří XMP sidecar soubor pro fotku.
+        """Create an XMP sidecar file for a photo.
 
         Args:
-            photo_path: Cesta k originální fotce
-            gps: GPS souřadnice (volitelné)
-            description: Popisek (volitelné)
-            location_name: Název místa (volitelné)
+            photo_path: Path to the original photo
+            gps: GPS coordinates (optional)
+            description: Description (optional)
+            location_name: Place name (optional)
 
         Returns:
-            Cesta k vytvořenému XMP souboru
+            Path to the created XMP file
         """
         log_call(
             "XmpWriter",
@@ -67,7 +67,7 @@ class XmpWriter:
 
         xmp_path = photo_path.with_suffix(".xmp")
 
-        # Připravit sekce
+        # Prepare sections
         gps_section = ""
         if gps:
             gps_section = self.GPS_SECTION.format(
@@ -77,9 +77,9 @@ class XmpWriter:
 
         description_section = ""
         if description:
-            # Escapovat XML speciální znaky
+            # Escape XML special characters
             escaped_desc = self._escape_xml(description)
-            # Headline je zkrácená verze (první věta nebo max 100 znaků)
+            # Headline is a shortened version (first sentence or max 100 characters)
             headline = self._create_headline(description)
             description_section = self.DESCRIPTION_SECTION.format(
                 description=escaped_desc,
@@ -92,14 +92,14 @@ class XmpWriter:
                 location=self._escape_xml(location_name),
             )
 
-        # Vygenerovat XMP
+        # Generate XMP
         xmp_content = self.XMP_TEMPLATE.format(
             gps_section=gps_section,
             description_section=description_section,
             location_section=location_section,
         )
 
-        # Uložit
+        # Save
         with open(xmp_path, "w", encoding="utf-8") as f:
             f.write(xmp_content)
 
@@ -107,7 +107,7 @@ class XmpWriter:
         return xmp_path
 
     def _format_gps_for_xmp(self, decimal: float, pos_ref: str, neg_ref: str) -> str:
-        """Formátuje GPS souřadnici do XMP formátu (DD,MM.MMM[N|S|E|W])."""
+        """Formats a GPS coordinate into XMP format (DD,MM.MMM[N|S|E|W])."""
         ref = pos_ref if decimal >= 0 else neg_ref
         decimal = abs(decimal)
 
@@ -117,7 +117,7 @@ class XmpWriter:
         return f"{degrees},{minutes:.6f}{ref}"
 
     def _escape_xml(self, text: str) -> str:
-        """Escapuje speciální XML znaky."""
+        """Escapes special XML characters."""
         return (
             text.replace("&", "&amp;")
             .replace("<", "&lt;")
@@ -127,14 +127,14 @@ class XmpWriter:
         )
 
     def _create_headline(self, description: str) -> str:
-        """Vytvoří headline z popisu (první věta nebo max 100 znaků)."""
-        # Najít konec první věty
+        """Creates a headline from the description (first sentence or max 100 characters)."""
+        # Find the end of the first sentence
         for end_char in [".", "!", "?"]:
             idx = description.find(end_char)
             if idx != -1 and idx < 100:
                 return description[: idx + 1]
 
-        # Pokud není konec věty, zkrátit na 100 znaků
+        # If no sentence end found, truncate to 100 characters
         if len(description) > 100:
             return description[:97] + "..."
         return description

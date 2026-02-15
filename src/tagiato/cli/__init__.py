@@ -1,1 +1,1 @@
-"""CLI rozhraní pro Tagiato."""
+"""CLI interface for Tagiato."""

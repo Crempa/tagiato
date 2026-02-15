@@ -1,4 +1,4 @@
-"""FastAPI aplikace pro web UI."""
+"""FastAPI application for web UI."""
 
 import re
 from pathlib import Path
@@ -20,20 +20,20 @@ from tagiato.web.routes import router
 
 
 def _read_location_from_xmp(xmp_path: Path) -> Optional[str]:
-    """Přečte location_name z XMP sidecar souboru.
+    """Read location_name from XMP sidecar file.
 
     Args:
-        xmp_path: Cesta k XMP souboru
+        xmp_path: Path to XMP file
 
     Returns:
-        Název místa nebo None
+        Place name or None
     """
     if not xmp_path.exists():
         return None
 
     try:
         content = xmp_path.read_text(encoding="utf-8")
-        # Hledáme tag <Iptc4xmpCore:Location>...</Iptc4xmpCore:Location>
+        # Search for tag <Iptc4xmpCore:Location>...</Iptc4xmpCore:Location>
         match = re.search(r"<Iptc4xmpCore:Location>([^<]+)</Iptc4xmpCore:Location>", content)
         if match:
             # Unescape XML entities
@@ -62,7 +62,7 @@ def create_app(
 
     app = FastAPI(
         title="Tagiato",
-        description="Web UI pro zpracování fotek",
+        description="Web UI for photo processing",
     )
 
     # Setup paths

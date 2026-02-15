@@ -1,33 +1,33 @@
-"""Verbose logger pro Tagiato."""
+"""Verbose logger for Tagiato."""
 
 from typing import Any, Optional
 from rich.console import Console
 
-# Globální instance
+# Global instance
 _console = Console()
 _verbose = False
 _web_mode = False
 
 
 def set_verbose(enabled: bool) -> None:
-    """Nastaví verbose mode."""
+    """Set verbose mode."""
     global _verbose
     _verbose = enabled
 
 
 def is_verbose() -> bool:
-    """Vrátí, zda je verbose mode zapnutý."""
+    """Return whether verbose mode is enabled."""
     return _verbose
 
 
 def set_web_mode(enabled: bool) -> None:
-    """Nastaví web mode - loguje do web bufferu."""
+    """Set web mode - logs to web buffer."""
     global _web_mode
     _web_mode = enabled
 
 
 def _web_log(level: str, message: str, data: Optional[dict] = None) -> None:
-    """Zaloguje do web bufferu pokud je web mode aktivní."""
+    """Log to web buffer if web mode is active."""
     if not _web_mode:
         return
     try:
@@ -38,14 +38,14 @@ def _web_log(level: str, message: str, data: Optional[dict] = None) -> None:
 
 
 def log_call(service: str, method: str, **kwargs: Any) -> None:
-    """Zaloguje volání služby s parametry.
+    """Log a service call with parameters.
 
     Args:
-        service: Název služby (např. "Geocoder")
-        method: Název metody (např. "geocode")
-        **kwargs: Parametry volání
+        service: Service name (e.g. "Geocoder")
+        method: Method name (e.g. "geocode")
+        **kwargs: Call parameters
     """
-    # Formátovat parametry
+    # Format parameters
     params = []
     for key, value in kwargs.items():
         if value is None:
@@ -58,21 +58,21 @@ def log_call(service: str, method: str, **kwargs: Any) -> None:
     params_str = ", ".join(params) if params else ""
     message = f"→ {service}.{method}({params_str})"
 
-    # Web log - vždy
+    # Web log - always
     _web_log("call", message, {"service": service, "method": method, "params": kwargs})
 
-    # Console log - pouze verbose
+    # Console log - verbose only
     if _verbose:
         _console.print(f"  [dim]{message}[/dim]")
 
 
 def log_result(service: str, method: str, result: Any) -> None:
-    """Zaloguje výsledek volání služby.
+    """Log a service call result.
 
     Args:
-        service: Název služby
-        method: Název metody
-        result: Výsledek volání
+        service: Service name
+        method: Method name
+        result: Call result
     """
     str_result = str(result)
     if len(str_result) > 80:
@@ -80,38 +80,38 @@ def log_result(service: str, method: str, result: Any) -> None:
 
     message = f"← {service}.{method} = {str_result}"
 
-    # Web log - vždy
+    # Web log - always
     _web_log("result", message, {"service": service, "method": method, "result": str(result)})
 
-    # Console log - pouze verbose
+    # Console log - verbose only
     if _verbose:
         _console.print(f"  [dim]{message}[/dim]")
 
 
 def log_info(message: str) -> None:
-    """Zaloguje informační zprávu."""
-    # Web log - vždy
+    """Log an informational message."""
+    # Web log - always
     _web_log("info", message)
 
-    # Console log - pouze verbose
+    # Console log - verbose only
     if _verbose:
         _console.print(f"  [dim]{message}[/dim]")
 
 
 def log_warning(message: str) -> None:
-    """Zaloguje varovnou zprávu."""
-    # Web log - vždy
+    """Log a warning message."""
+    # Web log - always
     _web_log("warning", message)
 
-    # Console log - vždy (varování jsou důležitá)
+    # Console log - always (warnings are important)
     _console.print(f"  [yellow]⚠ {message}[/yellow]")
 
 
 def log_prompt(prompt: str) -> None:
-    """Zaloguje celý prompt do web bufferu."""
+    """Log the full prompt to web buffer."""
     _web_log("prompt", "AI Prompt", {"prompt": prompt})
 
 
 def log_response(response: str) -> None:
-    """Zaloguje celou odpověď od AI do web bufferu."""
+    """Log the full AI response to web buffer."""
     _web_log("response", "AI Response", {"response": response})

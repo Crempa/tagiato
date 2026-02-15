@@ -1,4 +1,4 @@
-"""Abstrakce pro AI providery (Claude, Gemini, OpenAI Codex)."""
+"""Abstraction for AI providers (Claude, Gemini, OpenAI Codex)."""
 
 import json
 import subprocess
@@ -14,20 +14,20 @@ from tagiato.models.location import GPSCoordinates
 
 @dataclass
 class DescriptionResult:
-    """Výsledek generování popisku."""
+    """Result of description generation."""
     description: str
 
 
 @dataclass
 class LocationResult:
-    """Výsledek lokalizace."""
+    """Result of location detection."""
     gps: Optional[GPSCoordinates] = None
     confidence: str = "low"
     location_name: str = ""
     reasoning: str = ""
 
 
-# Společné prompt šablony
+# Shared prompt templates
 LOCATE_PROMPT_TEMPLATE = """Jsi expert na geolokalizaci. Tvým úkolem je určit PŘESNÉ GPS souřadnice místa.
 
 Vstupní data:
@@ -82,17 +82,17 @@ VÝSTUP JSON:
 
 
 class AIProvider(ABC):
-    """Abstraktní třída pro AI providery."""
+    """Abstract class for AI providers."""
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Název providera."""
+        """Provider name."""
         pass
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Zkontroluje dostupnost CLI nástroje."""
+        """Check availability of the CLI tool."""
         pass
 
     @abstractmethod
@@ -107,7 +107,7 @@ class AIProvider(ABC):
         user_hint: str = "",
         nearby_descriptions: Optional[list[str]] = None,
     ) -> DescriptionResult:
-        """Vygeneruje popisek pro fotku."""
+        """Generate a description for a photo."""
         pass
 
     @abstractmethod
@@ -118,15 +118,15 @@ class AIProvider(ABC):
         custom_prompt: Optional[str] = None,
         user_hint: str = "",
     ) -> LocationResult:
-        """Určí GPS pozici fotky."""
+        """Determine the GPS position of a photo."""
         pass
 
 
 def _parse_json_response(response: str) -> dict:
-    """Parsuje JSON z odpovědi AI (s podporou markdown bloků)."""
+    """Parse JSON from AI response (with markdown block support)."""
     response = response.strip()
 
-    # Najít JSON blok v markdown
+    # Find JSON block in markdown
     if "```json" in response:
         start = response.find("```json") + 7
         end = response.find("```", start)
@@ -144,7 +144,7 @@ def _parse_json_response(response: str) -> dict:
         if end > start:
             response = response[start:end].strip()
 
-    # Pokud stále není JSON, zkusit najít { ... }
+    # If still not JSON, try to find { ... }
     if not response.startswith("{"):
         json_start = response.find("{")
         json_end = response.rfind("}") + 1
@@ -168,7 +168,7 @@ class ClaudeProvider(AIProvider):
         return shutil.which("claude") is not None
 
     def _run_claude(self, prompt: str) -> Optional[str]:
-        """Spustí Claude CLI s promptem."""
+        """Run Claude CLI with a prompt."""
         log_info(f"claude --dangerously-skip-permissions --model {self.model} --print <prompt>")
         log_prompt(prompt)
 
@@ -207,7 +207,7 @@ class ClaudeProvider(AIProvider):
     ) -> DescriptionResult:
         log_call("ClaudeProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
-        # Dynamicky sestavit kontextové řádky
+        # Dynamically build context lines
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
@@ -256,7 +256,7 @@ Vyber JINÝ zajímavý fakt o daném místě.
             return result
 
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-            # Fallback - použít celou odpověď jako popisek
+            # Fallback - use the entire response as the description
             if response and not response.strip().startswith("{"):
                 return DescriptionResult(description=response.strip())
             return DescriptionResult(description="")
@@ -325,7 +325,7 @@ class GeminiProvider(AIProvider):
         return shutil.which("gemini") is not None
 
     def _run_gemini(self, prompt: str) -> Optional[str]:
-        """Spustí Gemini CLI s promptem."""
+        """Run Gemini CLI with a prompt."""
         log_info(f"gemini --yolo --model {self.model} <prompt>")
         log_prompt(prompt)
 
@@ -365,7 +365,7 @@ class GeminiProvider(AIProvider):
     ) -> DescriptionResult:
         log_call("GeminiProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
-        # Dynamicky sestavit kontextové řádky
+        # Dynamically build context lines
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
@@ -482,7 +482,7 @@ class OpenAIProvider(AIProvider):
         return shutil.which("codex") is not None
 
     def _run_codex(self, prompt: str, image_path: Path) -> Optional[str]:
-        """Spustí Codex CLI s promptem a obrázkem."""
+        """Run Codex CLI with a prompt and image."""
         log_info(f"codex exec --model {self.model} --image {image_path.name} <prompt>")
         log_prompt(prompt)
 
@@ -528,7 +528,7 @@ class OpenAIProvider(AIProvider):
     ) -> DescriptionResult:
         log_call("OpenAIProvider", "describe", thumbnail=thumbnail_path.name, model=self.model)
 
-        # Dynamicky sestavit kontextové řádky
+        # Dynamically build context lines
         context_lines = []
         if coords:
             context_lines.append(f"- GPS: {coords.latitude:.6f}, {coords.longitude:.6f}")
@@ -632,17 +632,17 @@ Vyber JINÝ zajímavý fakt o daném místě.
 
 
 def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
-    """Factory funkce pro vytvoření AI providera.
+    """Factory function for creating an AI provider.
 
     Args:
-        provider_name: "claude", "gemini" nebo "openai"
-        model: Volitelný model (default: sonnet pro Claude, flash pro Gemini, o3 pro OpenAI)
+        provider_name: "claude", "gemini" or "openai"
+        model: Optional model (default: sonnet for Claude, flash for Gemini, o3 for OpenAI)
 
     Returns:
-        Instance AIProvider
+        AIProvider instance
 
     Raises:
-        ValueError: Neznámý provider
+        ValueError: Unknown provider
     """
     if provider_name == "claude":
         return ClaudeProvider(model=model or "sonnet")
@@ -651,11 +651,11 @@ def get_provider(provider_name: str, model: Optional[str] = None) -> AIProvider:
     elif provider_name == "openai":
         return OpenAIProvider(model=model or "o3")
     else:
-        raise ValueError(f"Neznámý AI provider: {provider_name}")
+        raise ValueError(f"Unknown AI provider: {provider_name}")
 
 
 def get_available_providers() -> list[str]:
-    """Vrátí seznam dostupných providerů."""
+    """Return a list of available providers."""
     available = []
     if ClaudeProvider().is_available():
         available.append("claude")

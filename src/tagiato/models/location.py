@@ -1,4 +1,4 @@
-"""Modely pro lokaci a GPS souřadnice."""
+"""Models for location and GPS coordinates."""
 
 import math
 from dataclasses import dataclass
@@ -7,16 +7,16 @@ from typing import Optional, Tuple
 
 @dataclass
 class GPSCoordinates:
-    """GPS souřadnice s metodami pro konverzi do EXIF formátu."""
+    """GPS coordinates with methods for conversion to EXIF format."""
 
     latitude: float
     longitude: float
 
     def to_exif_format(self) -> Tuple[Tuple[Tuple[int, int], ...], str, Tuple[Tuple[int, int], ...], str]:
-        """Převede souřadnice do EXIF formátu (degrees, minutes, seconds jako rational).
+        """Convert coordinates to EXIF format (degrees, minutes, seconds as rational).
 
         Returns:
-            Tuple obsahující (lat_dms, lat_ref, lng_dms, lng_ref)
+            Tuple containing (lat_dms, lat_ref, lng_dms, lng_ref)
         """
         lat_ref = "N" if self.latitude >= 0 else "S"
         lng_ref = "E" if self.longitude >= 0 else "W"
@@ -28,30 +28,30 @@ class GPSCoordinates:
 
     @staticmethod
     def _decimal_to_dms(decimal: float) -> Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int]]:
-        """Převede desetinné stupně na stupně, minuty, vteřiny jako rational tuple."""
+        """Convert decimal degrees to degrees, minutes, seconds as rational tuple."""
         degrees = int(decimal)
         minutes_decimal = (decimal - degrees) * 60
         minutes = int(minutes_decimal)
         seconds = (minutes_decimal - minutes) * 60
-        # Reprezentujeme jako rational čísla (čitatel, jmenovatel)
-        # Vteřiny s přesností na 4 desetinná místa
+        # Represent as rational numbers (numerator, denominator)
+        # Seconds with precision of 4 decimal places
         seconds_rational = (int(seconds * 10000), 10000)
         return ((degrees, 1), (minutes, 1), seconds_rational)
 
     @classmethod
     def from_geo_string(cls, geo_string: str) -> Optional["GPSCoordinates"]:
-        """Parsuje 'geo:lat,lng' string z Google Timeline.
+        """Parse 'geo:lat,lng' string from Google Timeline.
 
         Args:
-            geo_string: String ve formátu "geo:50.042305,15.760400"
+            geo_string: String in format "geo:50.042305,15.760400"
 
         Returns:
-            GPSCoordinates nebo None pokud parsing selže
+            GPSCoordinates or None if parsing fails
         """
         if not geo_string or not geo_string.startswith("geo:"):
             return None
         try:
-            coords = geo_string[4:]  # odstranit "geo:"
+            coords = geo_string[4:]  # remove "geo:"
             lat_str, lng_str = coords.split(",")
             return cls(latitude=float(lat_str), longitude=float(lng_str))
         except (ValueError, IndexError):
@@ -61,15 +61,15 @@ class GPSCoordinates:
         return f"{self.latitude:.6f}, {self.longitude:.6f}"
 
     def distance_to(self, other: "GPSCoordinates") -> float:
-        """Vypočítá vzdálenost k jiným souřadnicím v km (haversine formula).
+        """Calculate distance to other coordinates in km (haversine formula).
 
         Args:
-            other: Cílové GPS souřadnice
+            other: Target GPS coordinates
 
         Returns:
-            Vzdálenost v kilometrech
+            Distance in kilometers
         """
-        R = 6371  # Poloměr Země v km
+        R = 6371  # Earth's radius in km
 
         lat1 = math.radians(self.latitude)
         lat2 = math.radians(other.latitude)
@@ -84,11 +84,11 @@ class GPSCoordinates:
 
 @dataclass
 class Location:
-    """Lokace s GPS souřadnicemi a názvem místa."""
+    """Location with GPS coordinates and place name."""
 
     coordinates: GPSCoordinates
     place_name: Optional[str] = None
-    confidence: float = 1.0  # 0.0-1.0, jak moc jsme si jisti
+    confidence: float = 1.0  # 0.0-1.0, how confident we are
 
     @property
     def latitude(self) -> float:

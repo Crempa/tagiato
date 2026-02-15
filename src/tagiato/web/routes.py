@@ -1,4 +1,4 @@
-"""API endpointy pro web UI."""
+"""API endpoints for web UI."""
 
 import asyncio
 from pathlib import Path
@@ -168,7 +168,7 @@ async def get_thumbnail(filename: str):
 
 
 async def _run_describe_task(task_id: str, filename: str, user_hint: str):
-    """Background worker pro generování popisku."""
+    """Background worker for generating description."""
     photo = app_state.get_photo(filename)
     if not photo:
         app_state.update_task(task_id, status=TaskStatus.ERROR, error="Photo not found")
@@ -200,12 +200,12 @@ async def _run_describe_task(task_id: str, filename: str, user_hint: str):
         # Log used context
         if nearby_descriptions:
             if photo.description:
-                context_info = f"vlastní popisek + " if nearby else "vlastní popisek"
+                context_info = f"own description + " if nearby else "own description"
                 if nearby:
                     context_info += ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
             else:
                 context_info = ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
-            log_buffer.add("info", f"Kontext z okolí: {context_info}")
+            log_buffer.add("info", f"Nearby context: {context_info}")
 
         # Run blocking AI call in thread pool
         result = await asyncio.to_thread(
@@ -278,7 +278,7 @@ async def generate_description(filename: str, request: Request):
 
 
 async def _run_locate_task(task_id: str, filename: str, user_hint: str):
-    """Background worker pro lokalizaci."""
+    """Background worker for localization."""
     photo = app_state.get_photo(filename)
     if not photo:
         app_state.update_task(task_id, status=TaskStatus.ERROR, error="Photo not found")
@@ -331,7 +331,7 @@ async def _run_locate_task(task_id: str, filename: str, user_hint: str):
                 }
             )
         else:
-            # I bez GPS můžeme mít location_name
+            # Even without GPS we may have location_name
             app_state.update_photo(
                 filename,
                 locate_status=ProcessingStatus.DONE,
@@ -409,8 +409,8 @@ async def get_prompt_preview(filename: str, request: Request):
 
     # Build image line based on include_image flag
     if include_image:
-        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail není k dispozici]"
-        image_line = f"- Analyzuj tento obrázek: {thumbnail_path}\n"
+        thumbnail_path = str(photo.thumbnail_path.absolute()) if photo.thumbnail_path else "[thumbnail not available]"
+        image_line = f"- Analyze this image: {thumbnail_path}\n"
     else:
         image_line = ""
 
@@ -420,13 +420,13 @@ async def get_prompt_preview(filename: str, request: Request):
         if photo.gps:
             context_lines.append(f"- GPS: {photo.gps.latitude:.6f}, {photo.gps.longitude:.6f}")
         if photo.location_name:
-            context_lines.append(f"- Lokalizované místo: {photo.location_name}")
+            context_lines.append(f"- Located place: {photo.location_name}")
         if photo.place_name:
-            context_lines.append(f"- Místo (hrubý odhad): {photo.place_name}")
+            context_lines.append(f"- Place (rough estimate): {photo.place_name}")
         if photo.timestamp:
-            context_lines.append(f"- Datum: {photo.timestamp.strftime('%d. %m. %Y %H:%M')}")
+            context_lines.append(f"- Date: {photo.timestamp.strftime('%d. %m. %Y %H:%M')}")
 
-        user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
+        user_hint_line = f"- User adds: {user_hint}" if user_hint.strip() else ""
 
         # Get nearby descriptions context for preview
         nearby = app_state.get_nearby_descriptions(filename)
@@ -438,11 +438,11 @@ async def get_prompt_preview(filename: str, request: Request):
 
         if nearby_descriptions:
             descriptions_text = "\n".join(f"- {desc}" for desc in nearby_descriptions)
-            nearby_line = f"""EXISTUJÍCÍ POPISKY Z OKOLÍ:
+            nearby_line = f"""EXISTING DESCRIPTIONS FROM NEARBY:
 {descriptions_text}
 
-DŮLEŽITÉ: NIKDY neopakuj informace z výše uvedených popisků!
-Vyber JINÝ zajímavý fakt o daném místě.
+IMPORTANT: NEVER repeat information from the descriptions above!
+Choose a DIFFERENT interesting fact about the given place.
 """
         else:
             nearby_line = ""
@@ -457,13 +457,13 @@ Vyber JINÝ zajímavý fakt o daném místě.
         )
     else:
         # Locate prompt
-        user_hint_line = f"- Uživatel k tomu dodává: {user_hint}" if user_hint.strip() else ""
+        user_hint_line = f"- User adds: {user_hint}" if user_hint.strip() else ""
 
         template = app_state.locate_prompt or LOCATE_PROMPT_TEMPLATE
 
         prompt = template.format(
             image_line=image_line,
-            timestamp=photo.timestamp.strftime("%d. %m. %Y %H:%M") if photo.timestamp else "neznámé",
+            timestamp=photo.timestamp.strftime("%d. %m. %Y %H:%M") if photo.timestamp else "unknown",
             user_hint_line=user_hint_line,
         )
 
@@ -565,7 +565,7 @@ def _run_batch_processing():
                             is_dirty=True,
                         )
                     else:
-                        # I bez GPS můžeme mít location_name
+                        # Even without GPS we may have location_name
                         app_state.update_photo(
                             filename,
                             locate_status=ProcessingStatus.DONE,
@@ -590,12 +590,12 @@ def _run_batch_processing():
                         # Log used context
                         if nearby_descriptions:
                             if photo.description:
-                                context_info = f"vlastní popisek"
+                                context_info = f"own description"
                                 if nearby:
                                     context_info += " + " + ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
                             else:
                                 context_info = ", ".join(f"{fn} ({d:.1f}km)" for fn, _, d in nearby)
-                            log_buffer.add("info", f"[{filename}] Kontext z okolí: {context_info}")
+                            log_buffer.add("info", f"[{filename}] Nearby context: {context_info}")
 
                         result = provider.describe(
                             thumbnail_path=photo.thumbnail_path,
@@ -927,20 +927,20 @@ async def stream_logs():
     async def event_generator():
         q = log_buffer.subscribe()
         try:
-            # Nejprve poslat existující logy
+            # First send existing logs
             for entry in log_buffer.get_all():
                 yield f"data: {json.dumps(entry)}\n\n"
 
-            # Pak streamovat nové
+            # Then stream new ones
             while True:
                 try:
-                    # Čekat na nový log entry (s timeoutem pro keep-alive)
+                    # Wait for new log entry (with timeout for keep-alive)
                     entry = await asyncio.get_event_loop().run_in_executor(
                         None, lambda: q.get(timeout=30)
                     )
                     yield f"data: {json.dumps(entry)}\n\n"
                 except Exception:
-                    # Timeout - poslat keep-alive
+                    # Timeout - send keep-alive
                     yield ": keep-alive\n\n"
         finally:
             log_buffer.unsubscribe(q)

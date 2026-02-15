@@ -1,4 +1,4 @@
-"""In-memory stav fotek pro web UI."""
+"""In-memory photo state for web UI."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -14,7 +14,7 @@ from tagiato.models.location import GPSCoordinates
 
 
 class TaskStatus(str, Enum):
-    """Stav AI tasku."""
+    """AI task status."""
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
@@ -23,10 +23,10 @@ class TaskStatus(str, Enum):
 
 @dataclass
 class AITask:
-    """AI task pro asynchronní zpracování."""
+    """AI task for asynchronous processing."""
     task_id: str
     filename: str
-    operation: str  # "describe" nebo "locate"
+    operation: str  # "describe" or "locate"
     status: TaskStatus = TaskStatus.PENDING
     result: Optional[dict] = None
     error: Optional[str] = None
@@ -43,7 +43,7 @@ class AITask:
 
 
 class LogBuffer:
-    """Thread-safe log buffer pro web UI."""
+    """Thread-safe log buffer for web UI."""
 
     MAX_ENTRIES = 1000
 
@@ -53,7 +53,7 @@ class LogBuffer:
         self.subscribers: List[queue.Queue] = []
 
     def add(self, level: str, message: str, data: Optional[dict] = None):
-        """Přidá log entry."""
+        """Add a log entry."""
         entry = {
             "timestamp": datetime.now().isoformat(),
             "level": level,
@@ -63,11 +63,11 @@ class LogBuffer:
 
         with self.lock:
             self.entries.append(entry)
-            # Omezit velikost bufferu
+            # Limit buffer size
             if len(self.entries) > self.MAX_ENTRIES:
                 self.entries = self.entries[-self.MAX_ENTRIES:]
 
-            # Notifikovat subscribery
+            # Notify subscribers
             for q in self.subscribers:
                 try:
                     q.put_nowait(entry)
@@ -75,24 +75,24 @@ class LogBuffer:
                     pass
 
     def get_all(self) -> List[dict]:
-        """Vrátí všechny log entries."""
+        """Return all log entries."""
         with self.lock:
             return list(self.entries)
 
     def clear(self):
-        """Vymaže log buffer."""
+        """Clear the log buffer."""
         with self.lock:
             self.entries.clear()
 
     def subscribe(self) -> queue.Queue:
-        """Vytvoří nový subscriber queue pro SSE."""
+        """Create a new subscriber queue for SSE."""
         q = queue.Queue(maxsize=100)
         with self.lock:
             self.subscribers.append(q)
         return q
 
     def unsubscribe(self, q: queue.Queue):
-        """Odstraní subscriber queue."""
+        """Remove a subscriber queue."""
         with self.lock:
             if q in self.subscribers:
                 self.subscribers.remove(q)
@@ -103,7 +103,7 @@ log_buffer = LogBuffer()
 
 
 class ProcessingStatus(str, Enum):
-    """Stav zpracování fotky."""
+    """Photo processing status."""
     PENDING = "pending"
     PROCESSING = "processing"
     DONE = "done"
@@ -112,7 +112,7 @@ class ProcessingStatus(str, Enum):
 
 @dataclass
 class PhotoState:
-    """Stav jedné fotky v UI."""
+    """State of a single photo in the UI."""
 
     filename: str
     path: Path
@@ -179,7 +179,7 @@ class PhotoState:
 
 @dataclass
 class BatchState:
-    """Stav dávkového zpracování."""
+    """Batch processing state."""
 
     is_running: bool = False
     should_stop: bool = False
@@ -200,7 +200,7 @@ class BatchState:
 
 
 class AppState:
-    """Globální stav aplikace."""
+    """Global application state."""
 
     def __init__(self):
         self.photos: Dict[str, PhotoState] = {}
@@ -258,7 +258,7 @@ class AppState:
             return [self.photos[name] for name in self.photos_order if name in self.photos]
 
     def create_task(self, filename: str, operation: str) -> AITask:
-        """Vytvoří nový AI task."""
+        """Create a new AI task."""
         task_id = str(uuid.uuid4())
         task = AITask(
             task_id=task_id,
@@ -271,12 +271,12 @@ class AppState:
         return task
 
     def get_task(self, task_id: str) -> Optional[AITask]:
-        """Vrátí AI task podle ID."""
+        """Return AI task by ID."""
         with self.ai_tasks_lock:
             return self.ai_tasks.get(task_id)
 
     def update_task(self, task_id: str, **kwargs) -> Optional[AITask]:
-        """Aktualizuje AI task."""
+        """Update AI task."""
         with self.ai_tasks_lock:
             task = self.ai_tasks.get(task_id)
             if not task:
@@ -287,7 +287,7 @@ class AppState:
             return task
 
     def cleanup_old_tasks(self, max_age_seconds: int = 3600) -> None:
-        """Vymaže staré dokončené tasky."""
+        """Remove old completed tasks."""
         with self.ai_tasks_lock:
             to_remove = []
             for task_id, task in self.ai_tasks.items():
@@ -303,7 +303,7 @@ class AppState:
         return [p.to_dict() for p in self.get_all_photos()]
 
     def load_presets(self) -> None:
-        """Načte presety z prompts.json a aktivuje poslední."""
+        """Load presets from prompts.json and activate the last one."""
         if not self.tagiato_dir:
             return
 
@@ -326,7 +326,7 @@ class AppState:
             pass
 
     def save_presets(self) -> None:
-        """Uloží presety do prompts.json."""
+        """Save presets to prompts.json."""
         if not self.tagiato_dir:
             return
 
@@ -343,7 +343,7 @@ class AppState:
             pass
 
     def _activate_preset_internal(self, key: str) -> bool:
-        """Aktivuje preset bez ukládání."""
+        """Activate preset without saving."""
         if key not in self.presets:
             return False
 
@@ -354,14 +354,14 @@ class AppState:
         return True
 
     def activate_preset(self, key: str) -> bool:
-        """Aktivuje preset a uloží jako poslední použitý."""
+        """Activate preset and save as last used."""
         if not self._activate_preset_internal(key):
             return False
         self.save_presets()
         return True
 
     def create_preset(self, key: str, name: str, describe_prompt: str, locate_prompt: str) -> None:
-        """Vytvoří nový preset a aktivuje ho."""
+        """Create a new preset and activate it."""
         self.presets[key] = {
             "name": name,
             "describe_prompt": describe_prompt,
@@ -373,7 +373,7 @@ class AppState:
         self.save_presets()
 
     def delete_preset(self, key: str) -> bool:
-        """Smaže preset."""
+        """Delete a preset."""
         if key not in self.presets:
             return False
 
@@ -389,7 +389,7 @@ class AppState:
         return True
 
     def get_prompts_state(self) -> dict:
-        """Vrátí aktuální stav promptů pro API."""
+        """Return current prompts state for API."""
         return {
             "describe_prompt": self.describe_prompt,
             "locate_prompt": self.locate_prompt,
@@ -398,18 +398,18 @@ class AppState:
         }
 
     def _estimate_gps_from_time(self, photo: PhotoState) -> Optional[GPSCoordinates]:
-        """Odhadne GPS z časově blízkých fotek (do 30 minut).
+        """Estimate GPS from temporally close photos (within 30 minutes).
 
         Args:
-            photo: Fotka bez GPS
+            photo: Photo without GPS
 
         Returns:
-            GPS z nejbližší časově blízké fotky, nebo None
+            GPS from the nearest temporally close photo, or None
         """
         if not photo.timestamp:
             return None
 
-        MAX_TIME_GAP = 30 * 60  # 30 minut v sekundách
+        MAX_TIME_GAP = 30 * 60  # 30 minutes in seconds
         closest_time_diff = float("inf")
         closest_gps = None
 
@@ -427,13 +427,13 @@ class AppState:
         return closest_gps
 
     def get_nearby_descriptions(self, filename: str) -> List[tuple]:
-        """Vrátí popisky z fotek v okruhu.
+        """Return descriptions from photos within radius.
 
         Args:
-            filename: Název fotky pro kterou hledáme kontext
+            filename: Name of photo for which we are looking for context
 
         Returns:
-            Seznam tuplů (filename, description, distance_km) seřazený podle vzdálenosti
+            List of tuples (filename, description, distance_km) sorted by distance
         """
         if not self.context_enabled:
             return []
@@ -442,7 +442,7 @@ class AppState:
         if not photo:
             return []
 
-        # Získat GPS (vlastní nebo odhadnuté z času)
+        # Get GPS (own or estimated from time)
         target_gps = photo.gps or self._estimate_gps_from_time(photo)
         if not target_gps:
             return []
@@ -460,12 +460,12 @@ class AppState:
             if distance <= self.context_radius_km:
                 nearby.append((other.filename, other.description, distance))
 
-        # Seřadit podle vzdálenosti, vzít max_count
+        # Sort by distance, take max_count
         nearby.sort(key=lambda x: x[2])
         return nearby[: self.context_max_count]
 
     def load_settings(self) -> None:
-        """Načte nastavení z .tagiato/settings.json."""
+        """Load settings from .tagiato/settings.json."""
         if not self.tagiato_dir:
             return
 
@@ -485,7 +485,7 @@ class AppState:
             pass
 
     def save_settings(self) -> None:
-        """Uloží nastavení do .tagiato/settings.json."""
+        """Save settings to .tagiato/settings.json."""
         if not self.tagiato_dir:
             return
 

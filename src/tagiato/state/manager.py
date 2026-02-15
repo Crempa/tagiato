@@ -1,4 +1,4 @@
-"""Správa stavu zpracování pro resumability."""
+"""Processing state management for resumability."""
 
 import json
 from dataclasses import dataclass, field, asdict
@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 @dataclass
 class PhotoState:
-    """Stav zpracování jedné fotky."""
+    """Processing state of a single photo."""
 
     filename: str
     processed: bool = False
@@ -22,7 +22,7 @@ class PhotoState:
 
 @dataclass
 class ProcessingState:
-    """Celkový stav zpracování."""
+    """Overall processing state."""
 
     started_at: str = ""
     completed_at: Optional[str] = None
@@ -32,24 +32,24 @@ class ProcessingState:
 
 
 class StateManager:
-    """Spravuje stav zpracování pro možnost obnovení."""
+    """Manages processing state for resumability."""
 
     def __init__(self, state_file: Path):
         """
         Args:
-            state_file: Cesta k souboru se stavem
+            state_file: Path to the state file
         """
         self.state_file = state_file
         self._state: Optional[ProcessingState] = None
 
     def load(self) -> ProcessingState:
-        """Načte stav ze souboru nebo vytvoří nový."""
+        """Load state from file or create a new one."""
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                # Rekonstruovat PhotoState objekty
+                # Reconstruct PhotoState objects
                 photos = {}
                 for filename, photo_data in data.get("photos", {}).items():
                     photos[filename] = PhotoState(**photo_data)
@@ -69,17 +69,17 @@ class StateManager:
         return self._state
 
     def _create_new_state(self) -> ProcessingState:
-        """Vytvoří nový stav."""
+        """Create a new state."""
         return ProcessingState(started_at=datetime.now().isoformat())
 
     def save(self) -> None:
-        """Uloží stav do souboru."""
+        """Save state to file."""
         if self._state is None:
             return
 
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
 
-        # Serializovat do JSON
+        # Serialize to JSON
         data = {
             "started_at": self._state.started_at,
             "completed_at": self._state.completed_at,
@@ -94,7 +94,7 @@ class StateManager:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
     def is_photo_processed(self, filename: str) -> bool:
-        """Zjistí, zda byla fotka již zpracována."""
+        """Check whether the photo has already been processed."""
         if self._state is None:
             return False
         photo_state = self._state.photos.get(filename)
@@ -108,7 +108,7 @@ class StateManager:
         gps_refined: bool = False,
         error: Optional[str] = None,
     ) -> None:
-        """Označí fotku jako zpracovanou."""
+        """Mark a photo as processed."""
         if self._state is None:
             self._state = self._create_new_state()
 
@@ -127,21 +127,21 @@ class StateManager:
         self.save()
 
     def set_total_photos(self, count: int) -> None:
-        """Nastaví celkový počet fotek."""
+        """Set the total number of photos."""
         if self._state is None:
             self._state = self._create_new_state()
         self._state.total_photos = count
         self.save()
 
     def mark_completed(self) -> None:
-        """Označí zpracování jako dokončené."""
+        """Mark processing as completed."""
         if self._state is None:
             return
         self._state.completed_at = datetime.now().isoformat()
         self.save()
 
     def get_stats(self) -> dict:
-        """Vrátí statistiky zpracování."""
+        """Return processing statistics."""
         if self._state is None:
             return {}
 

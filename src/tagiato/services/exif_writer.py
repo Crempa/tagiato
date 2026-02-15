@@ -1,4 +1,4 @@
-"""Zápis GPS a popisků do EXIF metadat."""
+"""Writing GPS and descriptions to EXIF metadata."""
 
 import os
 import shutil
@@ -14,18 +14,18 @@ from tagiato.models.location import GPSCoordinates
 
 
 def is_exiftool_available() -> bool:
-    """Zkontroluje, zda je exiftool dostupný v PATH."""
+    """Check whether exiftool is available in PATH."""
     return shutil.which("exiftool") is not None
 
 
 def read_location_name(photo_path: Path) -> Optional[str]:
-    """Přečte název lokality z IPTC:Sub-location pomocí exiftool.
+    """Read location name from IPTC:Sub-location using exiftool.
 
     Args:
-        photo_path: Cesta k JPEG souboru
+        photo_path: Path to the JPEG file
 
     Returns:
-        Název lokality nebo None pokud není nastaven nebo exiftool není dostupný
+        Location name or None if not set or exiftool is not available
     """
     if not is_exiftool_available():
         return None
@@ -45,7 +45,7 @@ def read_location_name(photo_path: Path) -> Optional[str]:
 
 
 class ExifWriter:
-    """Zapisuje GPS souřadnice a popisky do EXIF metadat JPEG souborů."""
+    """Writes GPS coordinates and descriptions to EXIF metadata of JPEG files."""
 
     def write(
         self,
@@ -55,17 +55,17 @@ class ExifWriter:
         location_name: Optional[str] = None,
         skip_existing_gps: bool = True,
     ) -> None:
-        """Zapíše GPS a/nebo popisek do EXIF.
+        """Write GPS and/or description to EXIF.
 
         Args:
-            photo_path: Cesta k JPEG souboru
-            gps: GPS souřadnice (volitelné)
-            description: Popisek fotky (volitelné)
-            location_name: Název lokality (volitelné, vyžaduje exiftool)
-            skip_existing_gps: Přeskočit zápis GPS pokud už existuje
+            photo_path: Path to the JPEG file
+            gps: GPS coordinates (optional)
+            description: Photo description (optional)
+            location_name: Location name (optional, requires exiftool)
+            skip_existing_gps: Skip writing GPS if it already exists
 
         Raises:
-            ExifError: Pokud zápis selže
+            ExifError: If writing fails
         """
         log_call(
             "ExifWriter",
@@ -81,14 +81,14 @@ class ExifWriter:
             log_info("nothing to write")
             return
 
-        # Použít exiftool pokud je dostupný
+        # Use exiftool if available
         if is_exiftool_available():
             self._write_with_exiftool(photo_path, gps, description, location_name, skip_existing_gps)
         else:
-            # Fallback na piexif (bez location_name)
+            # Fallback to piexif (without location_name)
             self._write_with_piexif(photo_path, gps, description, skip_existing_gps)
             if location_name:
-                log_warning("exiftool není dostupný, location_name nebude zapsán")
+                log_warning("exiftool is not available, location_name will not be written")
 
     def _write_with_exiftool(
         self,
@@ -98,14 +98,14 @@ class ExifWriter:
         location_name: Optional[str],
         skip_existing_gps: bool,
     ) -> None:
-        """Zapíše metadata pomocí exiftool."""
-        # -P zachová původní datum modifikace souboru
+        """Write metadata using exiftool."""
+        # -P preserves the original file modification date
         args = ["exiftool", "-P", "-overwrite_original"]
 
         # GPS
         if gps is not None:
             if skip_existing_gps:
-                # Zkontrolovat existující GPS
+                # Check for existing GPS
                 check = subprocess.run(
                     ["exiftool", "-s3", "-GPSLatitude", str(photo_path)],
                     capture_output=True,
@@ -130,15 +130,15 @@ class ExifWriter:
                     f"-GPSLongitudeRef={'E' if gps.longitude >= 0 else 'W'}",
                 ])
 
-        # Description - pouze do UserComment
+        # Description - only to UserComment
         if description is not None:
             args.append(f"-UserComment={description}")
 
-        # Location name - do IPTC:Sub-location
+        # Location name - to IPTC:Sub-location
         if location_name is not None:
             args.append(f"-IPTC:Sub-location={location_name}")
 
-        # Pokud jsou jen základní argumenty, nic nezapisujeme
+        # If only base arguments remain, nothing to write
         if len(args) <= 2:
             log_info("nothing to write with exiftool")
             return
@@ -153,14 +153,14 @@ class ExifWriter:
                 timeout=30,
             )
             if result.returncode != 0:
-                raise ExifError(f"exiftool selhal: {result.stderr}")
-            log_info(f"Metadata zapsána pomocí exiftool")
+                raise ExifError(f"exiftool failed: {result.stderr}")
+            log_info(f"Metadata written using exiftool")
         except subprocess.TimeoutExpired:
             raise ExifError("exiftool timeout")
         except ExifError:
             raise
         except Exception as e:
-            raise ExifError(f"Chyba při zápisu pomocí exiftool: {e}")
+            raise ExifError(f"Error writing with exiftool: {e}")
 
     def _write_with_piexif(
         self,
@@ -169,41 +169,41 @@ class ExifWriter:
         description: Optional[str],
         skip_existing_gps: bool,
     ) -> None:
-        """Zapíše metadata pomocí piexif (fallback bez location_name)."""
+        """Write metadata using piexif (fallback without location_name)."""
         try:
-            # Uložit původní čas modifikace souboru
+            # Save the original file modification time
             original_stat = photo_path.stat()
             original_mtime = original_stat.st_mtime
             original_atime = original_stat.st_atime
 
-            # Načíst existující EXIF
+            # Load existing EXIF
             try:
                 exif_dict = piexif.load(str(photo_path))
             except Exception:
                 exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}, "thumbnail": None}
 
-            # Zapsat GPS
+            # Write GPS
             if gps is not None:
                 has_existing_gps = self._has_gps(exif_dict)
                 if not (skip_existing_gps and has_existing_gps):
                     self._write_gps(exif_dict, gps)
 
-            # Zapsat popisek
+            # Write description
             if description is not None:
                 self._write_description(exif_dict, description)
 
-            # Uložit změny
+            # Save changes
             exif_bytes = piexif.dump(exif_dict)
             piexif.insert(exif_bytes, str(photo_path))
 
-            # Obnovit původní čas modifikace souboru
+            # Restore the original file modification time
             os.utime(photo_path, (original_atime, original_mtime))
 
         except Exception as e:
-            raise ExifError(f"Chyba při zápisu EXIF do {photo_path}: {e}")
+            raise ExifError(f"Error writing EXIF to {photo_path}: {e}")
 
     def _has_gps(self, exif_dict: dict) -> bool:
-        """Zkontroluje, zda EXIF obsahuje GPS data."""
+        """Check whether EXIF contains GPS data."""
         gps_data = exif_dict.get("GPS", {})
         return bool(
             gps_data.get(piexif.GPSIFD.GPSLatitude)
@@ -211,7 +211,7 @@ class ExifWriter:
         )
 
     def _write_gps(self, exif_dict: dict, gps: GPSCoordinates) -> None:
-        """Zapíše GPS souřadnice do EXIF dict."""
+        """Write GPS coordinates to EXIF dict."""
         lat_dms, lat_ref, lng_dms, lng_ref = gps.to_exif_format()
         log_info(f"Writing GPS to EXIF: {gps} -> lat={lat_dms} {lat_ref}, lng={lng_dms} {lng_ref}")
 
@@ -224,12 +224,12 @@ class ExifWriter:
         }
 
     def _write_description(self, exif_dict: dict, description: str) -> None:
-        """Zapíše popisek do UserComment v Exif IFD."""
+        """Write description to UserComment in Exif IFD."""
         if "Exif" not in exif_dict:
             exif_dict["Exif"] = {}
 
-        # UserComment má speciální formát: 8 bajtů encoding + text
-        # Použijeme Unicode (UTF-16 BE)
+        # UserComment has a special format: 8 bytes encoding + text
+        # We use Unicode (UTF-16 BE)
         user_comment = b"UNICODE\x00" + description.encode("utf-16-be")
         exif_dict["Exif"][piexif.ExifIFD.UserComment] = user_comment
 
@@ -240,19 +240,19 @@ class ExifWriter:
         clear_description: bool = True,
         clear_location_name: bool = True,
     ) -> bool:
-        """Smaže GPS a/nebo popisek z EXIF.
+        """Clear GPS and/or description from EXIF.
 
         Args:
-            photo_path: Cesta k JPEG souboru
-            clear_gps: Smazat GPS data
-            clear_description: Smazat popisek
-            clear_location_name: Smazat název lokality (IPTC:Sub-location)
+            photo_path: Path to the JPEG file
+            clear_gps: Clear GPS data
+            clear_description: Clear description
+            clear_location_name: Clear location name (IPTC:Sub-location)
 
         Returns:
-            True pokud bylo něco smazáno
+            True if something was cleared
 
         Raises:
-            ExifError: Pokud operace selže
+            ExifError: If the operation fails
         """
         log_call(
             "ExifWriter",
@@ -266,7 +266,7 @@ class ExifWriter:
         if not clear_gps and not clear_description and not clear_location_name:
             return False
 
-        # Použít exiftool pokud je dostupný
+        # Use exiftool if available
         if is_exiftool_available():
             return self._clear_with_exiftool(photo_path, clear_gps, clear_description, clear_location_name)
         else:
@@ -279,8 +279,8 @@ class ExifWriter:
         clear_description: bool,
         clear_location_name: bool,
     ) -> bool:
-        """Smaže metadata pomocí exiftool."""
-        # -P zachová původní datum modifikace souboru
+        """Clear metadata using exiftool."""
+        # -P preserves the original file modification date
         args = ["exiftool", "-P", "-overwrite_original"]
 
         if clear_gps:
@@ -300,11 +300,11 @@ class ExifWriter:
         try:
             result = subprocess.run(args, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
-                log_info("Metadata smazána pomocí exiftool")
+                log_info("Metadata cleared using exiftool")
                 return True
             return False
         except Exception as e:
-            log_warning(f"Chyba při mazání pomocí exiftool: {e}")
+            log_warning(f"Error clearing with exiftool: {e}")
             return False
 
     def _clear_with_piexif(
@@ -313,9 +313,9 @@ class ExifWriter:
         clear_gps: bool,
         clear_description: bool,
     ) -> bool:
-        """Smaže metadata pomocí piexif (fallback)."""
+        """Clear metadata using piexif (fallback)."""
         try:
-            # Uložit původní čas modifikace souboru
+            # Save the original file modification time
             original_stat = photo_path.stat()
             original_mtime = original_stat.st_mtime
             original_atime = original_stat.st_atime
@@ -353,11 +353,11 @@ class ExifWriter:
             if changed:
                 exif_bytes = piexif.dump(exif_dict)
                 piexif.insert(exif_bytes, str(photo_path))
-                # Obnovit původní čas modifikace souboru
+                # Restore the original file modification time
                 os.utime(photo_path, (original_atime, original_mtime))
                 log_info("EXIF cleared")
 
             return changed
 
         except Exception as e:
-            raise ExifError(f"Chyba při mazání EXIF z {photo_path}: {e}")
+            raise ExifError(f"Error clearing EXIF from {photo_path}: {e}")

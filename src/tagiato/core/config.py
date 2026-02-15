@@ -1,4 +1,4 @@
-"""Konfigurace pro Tagiato."""
+"""Configuration for Tagiato."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,30 +7,30 @@ from typing import Optional
 
 @dataclass
 class Config:
-    """Konfigurace pro zpracování fotek."""
+    """Configuration for photo processing."""
 
-    # Cesta ke složce s fotkami
+    # Path to the photos directory
     photos_dir: Path
 
-    # Cesta k timeline JSON (volitelné)
+    # Path to timeline JSON (optional)
     timeline_path: Optional[Path] = None
 
-    # Maximální časový rozdíl mezi fotkou a GPS bodem (v minutách)
+    # Maximum time difference between photo and GPS point (in minutes)
     max_time_gap: int = 30
 
-    # Model pro Claude (sonnet/opus/haiku)
+    # Model for Claude (sonnet/opus/haiku)
     model: str = "sonnet"
 
-    # Velikost náhledu (kratší strana v px)
+    # Thumbnail size (shorter side in px)
     thumbnail_size: int = 1024
 
     # Verbose mode
     verbose: bool = False
 
-    # Generovat XMP sidecar soubory
+    # Generate XMP sidecar files
     xmp: bool = False
 
-    # Pracovní složka
+    # Working directory
     @property
     def work_dir(self) -> Path:
         return self.photos_dir / ".tagiato"
@@ -52,6 +52,6 @@ class Config:
         return self.photos_dir / "descriptions.md"
 
     def ensure_dirs(self) -> None:
-        """Vytvoří potřebné složky."""
+        """Creates necessary directories."""
         self.work_dir.mkdir(exist_ok=True)
         self.thumbnails_dir.mkdir(exist_ok=True)

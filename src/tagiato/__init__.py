@@ -1,4 +1,4 @@
-"""Tagiato - CLI nástroj pro obohacení fotografií GPS souřadnicemi a AI popisky."""
+"""Tagiato - CLI tool for enriching photos with GPS coordinates and AI descriptions."""
 
 from importlib.metadata import version, PackageNotFoundError
 

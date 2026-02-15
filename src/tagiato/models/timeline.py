@@ -1,4 +1,4 @@
-"""Model pro body z Google Timeline."""
+"""Model for points from Google Timeline."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,12 +9,12 @@ from tagiato.models.location import GPSCoordinates
 
 @dataclass
 class TimelinePoint:
-    """Bod z Google Timeline s časem a GPS."""
+    """Point from Google Timeline with time and GPS."""
 
     timestamp: datetime
     coordinates: GPSCoordinates
     place_name: Optional[str] = None
-    activity_type: Optional[str] = None  # "visit" nebo "activity"
+    activity_type: Optional[str] = None  # "visit" or "activity"
 
     @property
     def latitude(self) -> float:
@@ -25,5 +25,5 @@ class TimelinePoint:
         return self.coordinates.longitude
 
     def __lt__(self, other: "TimelinePoint") -> bool:
-        """Pro řazení podle času."""
+        """For sorting by time."""
         return self.timestamp < other.timestamp

@@ -1,4 +1,4 @@
-"""Služby pro Tagiato."""
+"""Services for Tagiato."""
 
 from tagiato.services.photo_scanner import PhotoScanner
 from tagiato.services.timeline_loader import TimelineLoader

@@ -1,4 +1,4 @@
-"""Model pro fotografii."""
+"""Model for a photograph."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -10,15 +10,15 @@ from tagiato.models.location import Location, GPSCoordinates
 
 @dataclass
 class Photo:
-    """Reprezentace fotografie s metadaty."""
+    """Representation of a photograph with metadata."""
 
     path: Path
     timestamp: Optional[datetime] = None
-    original_gps: Optional[GPSCoordinates] = None  # GPS z EXIF (pokud existuje)
-    matched_location: Optional[Location] = None  # Lokace z timeline
-    refined_gps: Optional[GPSCoordinates] = None  # Upřesněné GPS od AI
+    original_gps: Optional[GPSCoordinates] = None  # GPS from EXIF (if exists)
+    matched_location: Optional[Location] = None  # Location from timeline
+    refined_gps: Optional[GPSCoordinates] = None  # Refined GPS from AI
     description: str = ""
-    location_name: Optional[str] = None  # Název lokality z IPTC:Sub-location
+    location_name: Optional[str] = None  # Location name from IPTC:Sub-location
     thumbnail_path: Optional[Path] = None
     processed: bool = False
     error: Optional[str] = None
@@ -33,9 +33,9 @@ class Photo:
 
     @property
     def final_gps(self) -> Optional[GPSCoordinates]:
-        """Vrátí nejlepší dostupné GPS souřadnice.
+        """Return the best available GPS coordinates.
 
-        Priorita: refined_gps > matched_location > original_gps
+        Priority: refined_gps > matched_location > original_gps
         """
         if self.refined_gps:
             return self.refined_gps
@@ -45,7 +45,7 @@ class Photo:
 
     @property
     def place_name(self) -> Optional[str]:
-        """Vrátí název místa pokud je dostupný."""
+        """Return place name if available."""
         if self.matched_location:
             return self.matched_location.place_name
         return None

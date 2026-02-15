@@ -659,12 +659,12 @@ async function loadPhotos() {
     }
 }
 
-// Update single photo in UI - zachovává ručně upravené hodnoty a původní data-original-* atributy
+// Update single photo in UI - preserves manually edited values and original data-original-* attributes
 function updatePhotoInUI(filename, updatedData) {
     const photo = photos.find(p => p.filename === filename);
     if (!photo) return;
 
-    // Zachytit ručně upravené hodnoty z DOM před překreslením
+    // Capture manually edited values from DOM before re-rendering
     const gpsInput = document.getElementById(`gps-${filename}`);
     const descInput = document.getElementById(`desc-${filename}`);
     const locInput = document.getElementById(`loc-${filename}`);
@@ -676,49 +676,49 @@ function updatePhotoInUI(filename, updatedData) {
         location_name: locInput?.value,
     };
 
-    // Zachytit původní hodnoty z data atributů (pro detekci neuložených změn)
+    // Capture original values from data attributes (for unsaved changes detection)
     const originalValues = {
         gps: saveBtn?.dataset.originalGps || '',
         desc: saveBtn?.dataset.originalDesc || '',
         loc: saveBtn?.dataset.originalLoc || '',
     };
 
-    // Sloučit nová data do objektu
+    // Merge new data into object
     Object.assign(photo, updatedData);
 
-    // Překreslit kartu
+    // Re-render the card
     const card = document.querySelector(`.photo-card[data-filename="${filename}"]`);
     if (card) {
         card.outerHTML = renderPhotoCard(photo);
     }
 
-    // Obnovit ručně upravené hodnoty (pokud updatedData neobsahuje tyto fieldy)
+    // Restore manually edited values (if updatedData doesn't contain these fields)
     const newGpsInput = document.getElementById(`gps-${filename}`);
     const newDescInput = document.getElementById(`desc-${filename}`);
     const newLocInput = document.getElementById(`loc-${filename}`);
     const newSaveBtn = document.querySelector(`.btn-save[data-filename="${filename}"]`);
 
-    // Obnovit GPS pokud uživatel upravil a updatedData neobsahuje nové gps
+    // Restore GPS if user edited and updatedData doesn't contain new gps
     if (newGpsInput && userEdits.gps && !updatedData.gps) {
         newGpsInput.value = userEdits.gps;
     }
-    // Obnovit description pokud uživatel upravil a updatedData neobsahuje description
+    // Restore description if user edited and updatedData doesn't contain description
     if (newDescInput && userEdits.description && !('description' in updatedData)) {
         newDescInput.value = userEdits.description;
     }
-    // Obnovit location_name pokud uživatel upravil a updatedData neobsahuje location_name
+    // Restore location_name if user edited and updatedData doesn't contain location_name
     if (newLocInput && userEdits.location_name && !('location_name' in updatedData)) {
         newLocInput.value = userEdits.location_name;
     }
 
-    // Obnovit původní hodnoty v data atributech (pro správnou detekci neuložených změn)
+    // Restore original values in data attributes (for correct unsaved changes detection)
     if (newSaveBtn) {
         newSaveBtn.dataset.originalGps = originalValues.gps;
         newSaveBtn.dataset.originalDesc = originalValues.desc;
         newSaveBtn.dataset.originalLoc = originalValues.loc;
     }
 
-    // Zkontrolovat a aktualizovat vzhled tlačítka Uložit
+    // Check and update Save button appearance
     checkUnsavedChanges(filename);
 }
 
