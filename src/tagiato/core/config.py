@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -11,12 +10,6 @@ class Config:
 
     # Path to the photos directory
     photos_dir: Path
-
-    # Path to timeline JSON (optional)
-    timeline_path: Optional[Path] = None
-
-    # Maximum time difference between photo and GPS point (in minutes)
-    max_time_gap: int = 30
 
     # Model for Claude (sonnet/opus/haiku)
     model: str = "sonnet"

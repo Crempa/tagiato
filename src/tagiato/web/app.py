@@ -10,10 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from tagiato.models.photo import Photo
-from tagiato.models.location import Location
 from tagiato.services.photo_scanner import PhotoScanner
-from tagiato.services.timeline_loader import TimelineLoader
-from tagiato.services.location_matcher import LocationMatcher
 from tagiato.services.thumbnail import ThumbnailGenerator
 from tagiato.web.state import app_state, PhotoState, ProcessingStatus
 from tagiato.web.routes import router
@@ -52,7 +49,6 @@ def _read_location_from_xmp(xmp_path: Path) -> Optional[str]:
 
 def create_app(
     photos_dir: Path,
-    timeline_path: Optional[Path] = None,
     describe_provider: str = "claude",
     describe_model: str = "sonnet",
     locate_provider: str = "claude",
@@ -91,7 +87,7 @@ def create_app(
     templates = Jinja2Templates(directory=str(templates_dir))
 
     # Load photos
-    _load_photos(photos_dir, timeline_path, thumbnails_dir)
+    _load_photos(photos_dir, thumbnails_dir)
 
     # Static files
     static_dir = Path(__file__).parent / "static"
@@ -121,22 +117,13 @@ def create_app(
 
 def _load_photos(
     photos_dir: Path,
-    timeline_path: Optional[Path],
     thumbnails_dir: Path,
 ) -> None:
-    """Load photos and match GPS from timeline."""
+    """Load photos and set up initial state."""
 
     # Scan photos
     scanner = PhotoScanner()
     photos: List[Photo] = scanner.scan(photos_dir)
-
-    # Load timeline if provided
-    matcher: Optional[LocationMatcher] = None
-    if timeline_path:
-        loader = TimelineLoader()
-        timeline_points = loader.load(timeline_path)
-        if timeline_points:
-            matcher = LocationMatcher(timeline_points)
 
     # Thumbnail generator
     thumbnail_gen = ThumbnailGenerator(thumbnails_dir)
@@ -155,14 +142,6 @@ def _load_photos(
             state.gps = photo.original_gps
             state.gps_source = "exif"
             state.has_exif_gps = True
-
-        # GPS from timeline (only if no EXIF GPS)
-        elif matcher and photo.timestamp:
-            location: Optional[Location] = matcher.match(photo.timestamp)
-            if location:
-                state.gps = location.coordinates
-                state.gps_source = "timeline"
-                state.place_name = location.place_name
 
         # Read description from EXIF
         if photo.description:

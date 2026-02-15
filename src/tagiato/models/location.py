@@ -38,25 +38,6 @@ class GPSCoordinates:
         seconds_rational = (int(seconds * 10000), 10000)
         return ((degrees, 1), (minutes, 1), seconds_rational)
 
-    @classmethod
-    def from_geo_string(cls, geo_string: str) -> Optional["GPSCoordinates"]:
-        """Parse 'geo:lat,lng' string from Google Timeline.
-
-        Args:
-            geo_string: String in format "geo:50.042305,15.760400"
-
-        Returns:
-            GPSCoordinates or None if parsing fails
-        """
-        if not geo_string or not geo_string.startswith("geo:"):
-            return None
-        try:
-            coords = geo_string[4:]  # remove "geo:"
-            lat_str, lng_str = coords.split(",")
-            return cls(latitude=float(lat_str), longitude=float(lng_str))
-        except (ValueError, IndexError):
-            return None
-
     def __str__(self) -> str:
         return f"{self.latitude:.6f}, {self.longitude:.6f}"
 

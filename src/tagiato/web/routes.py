@@ -211,7 +211,7 @@ async def _run_describe_task(task_id: str, filename: str, user_hint: str):
         result = await asyncio.to_thread(
             provider.describe,
             thumbnail_path=photo.thumbnail_path,
-            place_name=photo.place_name,
+            place_name=None,
             coords=photo.gps,
             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
             custom_prompt=app_state.describe_prompt,
@@ -421,8 +421,6 @@ async def get_prompt_preview(filename: str, request: Request):
             context_lines.append(f"- GPS: {photo.gps.latitude:.6f}, {photo.gps.longitude:.6f}")
         if photo.location_name:
             context_lines.append(f"- Located place: {photo.location_name}")
-        if photo.place_name:
-            context_lines.append(f"- Place (rough estimate): {photo.place_name}")
         if photo.timestamp:
             context_lines.append(f"- Date: {photo.timestamp.strftime('%d. %m. %Y %H:%M')}")
 
@@ -599,7 +597,7 @@ def _run_batch_processing():
 
                         result = provider.describe(
                             thumbnail_path=photo.thumbnail_path,
-                            place_name=photo.place_name,
+                            place_name=None,
                             coords=photo.gps,
                             timestamp=photo.timestamp.isoformat() if photo.timestamp else None,
                             custom_prompt=app_state.describe_prompt,

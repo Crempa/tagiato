@@ -120,10 +120,7 @@ class PhotoState:
 
     # GPS data
     gps: Optional[GPSCoordinates] = None
-    gps_source: str = ""  # "exif", "timeline", "manual"
-
-    # Place name from timeline (optional context for AI)
-    place_name: Optional[str] = None
+    gps_source: str = ""  # "exif", "manual"
 
     # AI description
     description: str = ""
@@ -161,7 +158,6 @@ class PhotoState:
                 "lng": self.gps.longitude,
             } if self.gps else None,
             "gps_source": self.gps_source,
-            "place_name": self.place_name,
             "description": self.description,
             "has_thumbnail": self.thumbnail_path is not None,
             "ai_status": self.ai_status.value,

@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from tagiato.models.location import Location, GPSCoordinates
+from tagiato.models.location import GPSCoordinates
 
 
 @dataclass
@@ -15,7 +15,6 @@ class Photo:
     path: Path
     timestamp: Optional[datetime] = None
     original_gps: Optional[GPSCoordinates] = None  # GPS from EXIF (if exists)
-    matched_location: Optional[Location] = None  # Location from timeline
     refined_gps: Optional[GPSCoordinates] = None  # Refined GPS from AI
     description: str = ""
     location_name: Optional[str] = None  # Location name from IPTC:Sub-location
@@ -35,17 +34,8 @@ class Photo:
     def final_gps(self) -> Optional[GPSCoordinates]:
         """Return the best available GPS coordinates.
 
-        Priority: refined_gps > matched_location > original_gps
+        Priority: refined_gps > original_gps
         """
         if self.refined_gps:
             return self.refined_gps
-        if self.matched_location:
-            return self.matched_location.coordinates
         return self.original_gps
-
-    @property
-    def place_name(self) -> Optional[str]:
-        """Return place name if available."""
-        if self.matched_location:
-            return self.matched_location.place_name
-        return None

@@ -17,12 +17,6 @@ class ClaudeNotFoundError(TagiatoError):
         )
 
 
-class TimelineParseError(TagiatoError):
-    """Error parsing Timeline JSON."""
-
-    pass
-
-
 class ExifError(TagiatoError):
     """Error working with EXIF data."""
 

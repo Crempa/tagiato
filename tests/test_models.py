@@ -7,19 +7,6 @@ from tagiato.models.location import GPSCoordinates, Location
 class TestGPSCoordinates:
     """Tests for GPSCoordinates."""
 
-    def test_from_geo_string_valid(self):
-        """Test parsing a valid geo string."""
-        coords = GPSCoordinates.from_geo_string("geo:50.042305,15.760400")
-        assert coords is not None
-        assert coords.latitude == pytest.approx(50.042305)
-        assert coords.longitude == pytest.approx(15.760400)
-
-    def test_from_geo_string_invalid(self):
-        """Test parsing an invalid geo string."""
-        assert GPSCoordinates.from_geo_string("invalid") is None
-        assert GPSCoordinates.from_geo_string("") is None
-        assert GPSCoordinates.from_geo_string(None) is None
-
     def test_to_exif_format(self):
         """Test conversion to EXIF format."""
         coords = GPSCoordinates(latitude=50.042305, longitude=15.760400)

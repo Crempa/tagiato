@@ -43,16 +43,6 @@ def main(
         dir_okay=True,
         resolve_path=True,
     ),
-    timeline: Optional[Path] = typer.Option(
-        None,
-        "--timeline",
-        "-t",
-        help="Path to Google Timeline JSON file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        resolve_path=True,
-    ),
     describe_provider: str = typer.Option(
         "claude",
         "--describe-provider",
@@ -115,8 +105,6 @@ def main(
 
     console.print(f"[blue]Tagiato Web UI[/blue]")
     console.print(f"  Directory: {photos_dir}")
-    if timeline:
-        console.print(f"  Timeline: {timeline}")
     console.print(f"  Descriptions: {describe_provider}/{describe_model}")
     console.print(f"  Localization: {locate_provider}/{locate_model}")
     console.print(f"  Port: {port}")
@@ -133,7 +121,6 @@ def main(
     # Create FastAPI app
     fastapi_app = create_app(
         photos_dir=photos_dir,
-        timeline_path=timeline,
         describe_provider=describe_provider,
         describe_model=describe_model,
         locate_provider=locate_provider,

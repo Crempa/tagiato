@@ -27,7 +27,7 @@ Tagiato is a web-based tool for enriching JPEG photos with GPS coordinates and A
 
 ### Core Components
 
-**CLI Entry Point** (`cli/main.py`) - Typer-based launcher that starts the web server with configurable options (provider, model, port, timeline).
+**CLI Entry Point** (`cli/main.py`) - Typer-based launcher that starts the web server with configurable options (provider, model, port).
 
 **Web Interface** (`web/`) - FastAPI application:
 - `app.py` - App factory, creates FastAPI app with configuration
@@ -48,8 +48,6 @@ Photo Directory
      ↓
 PhotoScanner (EXIF extraction)
      ↓
-TimelineLoader + LocationMatcher (GPS from timeline)
-     ↓
 ThumbnailGenerator (resize for AI)
      ↓
 AIProvider.describe() → JSON {description, refined_gps}
@@ -66,8 +64,7 @@ ExifWriter / XmpWriter (persist to files)
 ### GPS Priority Order
 
 1. `refined_gps` - AI-detected landmark coordinates
-2. `matched_location` - Timeline GPS matched by timestamp
-3. `original_gps` - Original EXIF GPS from camera
+2. `original_gps` - Original EXIF GPS from camera
 
 ### Web Interface
 
